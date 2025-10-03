@@ -207,7 +207,7 @@ async def my_reminders_handler(message: types.Message, database: Database):
                 'custom': 'Пользовательское'
             }.get(reminder['reminder_type'], reminder['reminder_type'])
 
-            text += f"📅 <b>{time_str}<b>\n"
+            text += f"📅 <b>{time_str}</b>\n"
             text += f"🔔 {reminder_type_text}\n"
             if reminder.get('procedure'):
                 text += f"🎯 {reminder['procedure']}\n"
