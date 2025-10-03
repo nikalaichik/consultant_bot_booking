@@ -225,7 +225,7 @@ class GoogleCalendarService:
                     'date_str': current_time.strftime('%d.%m.%Y'),
                     'time_str': current_time.strftime('%H:%M'),
                     'weekday': self._get_weekday_name(current_time.weekday()),
-                    'display': current_time.strftime('%d.%m.%Y (%a) %H:%M')
+                    'display': f"{current_time.strftime('%d.%m.%Y')} ({self._get_weekday_name(current_time.weekday())}) {current_time.strftime('%H:%M')}"
                 })
 
             # Переходим к следующему слоту

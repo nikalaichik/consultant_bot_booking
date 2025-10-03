@@ -241,9 +241,6 @@ class SimpleBotLogic:
             # Получаем сессию пользователя
             user_session = await self.session_manager.get_user_session(user_id)
 
-            # Классифицируем намерение
-            #intent = await self.classify_intent(message)
-
             cached_intent = user_session.get("last_intent")
             cached_query = user_session.get("last_query")
 
@@ -293,6 +290,7 @@ class SimpleBotLogic:
                 user_profile=user_session.get("user_profile"),
                 use_mini=use_mini
             )
+
             end_time = asyncio.get_event_loop().time()
 
             # Обновляем историю беседы

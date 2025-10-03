@@ -5,7 +5,8 @@ from bot.keyboards import BotKeyboards
 from bot.states import UserStates
 from data.database import Database
 from config import Config
-import datetime
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 import logging
 
 router = Router()
@@ -43,7 +44,7 @@ async def menu_handler(message: types.Message):
 
 @router.message(F.text == "💬 Консультация")
 async def consultation_start(message: types.Message, state: FSMContext):
-    text = "🔍 ПЕРСОНАЛЬНАЯ КОНСУЛЬТАЦИЯ..."
+    text = "🔍 ПЕРСОНАЛЬНАЯ КОНСУЛЬТАЦИЯ...\nВыберите ваш тип кожи"
     await message.answer(text, reply_markup=BotKeyboards.skin_type_menu())
     await state.set_state(UserStates.waiting_for_skin_type)
 
@@ -171,8 +172,9 @@ async def my_reminders_handler(message: types.Message, database: Database):
                 reply_markup=BotKeyboards.main_menu()
             )
             return
+        local_tz = ZoneInfo("Europe/Minsk")  # локальная таймзона
 
-        text = "📋 **ВАШИ НАПОМИНАНИЯ:**\n\n"
+        text = "📋 <b>ВАШИ НАПОМИНАНИЯ:</b>\n\n"
 
         for reminder in reminders[:5]:  # Показываем последние 5
             status_emoji = {
@@ -189,6 +191,11 @@ async def my_reminders_handler(message: types.Message, database: Database):
                 else:
                     scheduled_time = reminder['scheduled_time']
 
+                if scheduled_time.tzinfo:
+                    scheduled_time = scheduled_time.astimezone(local_tz)
+                else:
+                    scheduled_time = scheduled_time.replace(tzinfo=timezone.utc).astimezone(local_tz)
+
                 time_str = scheduled_time.strftime('%d.%m.%Y %H:%M')
             except:
                 time_str = str(reminder['scheduled_time'])
@@ -200,7 +207,7 @@ async def my_reminders_handler(message: types.Message, database: Database):
                 'custom': 'Пользовательское'
             }.get(reminder['reminder_type'], reminder['reminder_type'])
 
-            text += f"📅 **{time_str}**\n"
+            text += f"📅 <b>{time_str}<b>\n"
             text += f"🔔 {reminder_type_text}\n"
             if reminder.get('procedure'):
                 text += f"🎯 {reminder['procedure']}\n"

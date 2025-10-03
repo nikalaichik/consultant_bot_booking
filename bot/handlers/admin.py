@@ -34,7 +34,7 @@ async def admin_panel(message: types.Message, bot_logic: SimpleBotLogic, databas
         for booking in pending_bookings[:5]:
             admin_text += f"""
 
-🆔 Заявка #{booking['id']}
+🆔 Заявка {booking['id']}
 👤 {booking['first_name']} {booking['last_name']}
 🎯 {booking['procedure']}
 📅 {booking['created_at'][:16]}"""
@@ -62,7 +62,7 @@ async def admin_all_bookings_handler(callback: types.CallbackQuery, database: Da
     for booking in bookings:
         text += f"""
 
-🆔 #{booking['id']}
+🆔 {booking['id']}
 👤 {booking['first_name']} {booking['last_name']}
 🎯 {booking['procedure']}
 📅 {booking['created_at'][:16]}"""
