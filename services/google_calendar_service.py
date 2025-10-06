@@ -16,11 +16,9 @@ class GoogleCalendarService:
         self.credentials_path = credentials_path
         self.calendar_id = calendar_id
         self.timezone = pytz.timezone(timezone)
+        self._lock = asyncio.Lock()  # Добавляем блокировку для транзакций
         self.service = None
         self._initialize_service()
-
-        self.service = None
-        self._lock = asyncio.Lock()  # Добавляем блокировку для транзакций
 
     def _initialize_service(self):
         """Инициализация Google Calendar API"""
