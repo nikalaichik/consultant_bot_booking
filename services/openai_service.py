@@ -103,12 +103,12 @@ class OpenAIService:
 
             content = response.choices[0].message.content
 
-            response_text = strip_markdown(response_text)
+            clean_content = strip_markdown(content)
             if not content or not content.strip():
                 logger.warning("OpenAI вернул пустой контент")
                 return self._get_fallback_response(intent, user_message)
 
-            return content
+            return clean_content
 
         except Exception as e:
             logger.exception(f"Ошибка генерации ответа OpenAI: {e}")
