@@ -19,6 +19,9 @@ class GoogleCalendarService:
         self.service = None
         self._initialize_service()
 
+        self.service = None
+        self._lock = asyncio.Lock()  # Добавляем блокировку для транзакций
+
     def _initialize_service(self):
         """Инициализация Google Calendar API"""
         try:
@@ -64,7 +67,7 @@ class GoogleCalendarService:
         """
         try:
             # Определяем временные границы
-            now = datetime.now(self.timezone)
+            now = datetime.now(tz=self.timezone)
             # Начинаем с завтрашнего дня если уже поздно
             if now.hour >= 18:
                 start_time = (now + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
@@ -200,7 +203,7 @@ class GoogleCalendarService:
         )
 
         # Если это сегодня, начинаем не раньше чем через 2 часа
-        now = datetime.now(self.timezone)
+        now = datetime.now(tz=self.timezone)
         if date == now.date():
             min_time = now + timedelta(hours=2)
             current_time = max(current_time, min_time.replace(minute=0, second=0, microsecond=0))
@@ -246,10 +249,28 @@ class GoogleCalendarService:
         Returns:
             str: ID созданного события или None при ошибке
         """
+        async with self._lock:  # Защищаем от параллельных бронирований
+            # Проверяем, инициализирован ли сервис
+            if self.service is None:
+                await self.initialize()
+
         try:
             # Приводим время к локальному часовому поясу
             start_local = self._localize_datetime(start_time)
             end_local = self._localize_datetime(end_time)
+
+             # Проверяем, занят ли слот
+            busy_slots = await self._get_busy_slots(start_local, end_local)
+
+            if any(
+                slot['start'] < end_local and slot['end'] > start_local
+                for slot in busy_slots
+            ):
+                logger.warning(f"Попытка бронирования на занятый слот: {start_time}")
+                raise ValueError(
+                    f"Выбранное время ({start_time.strftime('%Y-%m-%d %H:%M')}) занято. "
+                    "Пожалуйста, выберите другое время."
+                )
 
             event = {
                 'summary': f'💅 {procedure}',
@@ -385,7 +406,7 @@ class GoogleCalendarService:
     async def get_upcoming_events(self, hours_ahead: int = 24) -> List[Dict]:
         """Получает ближайшие события для уведомлений"""
         try:
-            now = datetime.now(self.timezone)
+            now = datetime.now(tz=self.timezone)
             end_time = now + timedelta(hours=hours_ahead)
 
             start_utc = self._to_utc_isoformat(now)

@@ -6,15 +6,16 @@ from bot.states import UserStates
 from services.bot_logic import SimpleBotLogic
 from bot.keyboards import BotKeyboards
 from data.database import Database
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from services.google_calendar_service import GoogleCalendarService
-from datetime import datetime, timedelta
+from datetime import datetime
 import logging
+import pytz
 from typing import Any, Dict
-from services.reminder_service import tz
 
 logger = logging.getLogger(__name__)
 router = Router()
+tz = pytz.timezone('Europe/Minsk')
 
 @dataclass
 class Slot:
@@ -74,8 +75,11 @@ async def booking_start_handler(callback: types.CallbackQuery, state: FSMContext
 }
     query = procedure_queries.get(procedure, f"информация о процедуре {procedure}")
 
+    # Получаем данные профиля из FSM, если они там есть
+    user_data = await state.get_data()
+    user_profile = user_data.get("user_profile")
 
-    info_response, _ = await bot_logic.process_message(callback.from_user.id, query)
+    info_response = await bot_logic.get_info_from_kb(query, user_profile)
 
     # Получаем информацию из базы знаний
     procedure_names = {
@@ -414,20 +418,68 @@ async def final_booking_confirmation_handler(callback: types.CallbackQuery, stat
     """Финальное подтверждение записи - создание записи в календаре и БД"""
     await callback.answer()
     await callback.message.edit_text("⏳ Создаем запись в календаре... Пожалуйста, подождите.")
+    user_data = {}
+    selected_slot_display = "не определено"
+    procedure_name_display = "не определена"
     try:
         user_data = await state.get_data()
+        # Безопасно получаем данные для отображения в случае ошибки
         selected_slot_data = user_data.get("selected_slot")
+        if selected_slot_data:
+            selected_slot_display = selected_slot_data.get('display', 'не определено')
+        procedure_name_display = user_data.get("procedure_name", "не определена")
+
+        selected_slot = Slot.deserialize(user_data.get("selected_slot"))
+        #selected_slot_data = user_data.get("selected_slot")
         procedure_name = user_data.get("procedure_name")
-        procedure = user_data.get("procedure")
+        #procedure = user_data.get("procedure")
         contact_info = user_data.get("contact_info")
 
         # Восстанавливаем Slot
-        selected_slot = Slot.deserialize(selected_slot_data)
+        #selected_slot = Slot.deserialize(selected_slot_data)
 
         # Парсим контактные данные
-        contact_lines = contact_info.strip().split('\n')
-        client_name = contact_lines[0] if contact_lines else "Клиент"
-        client_phone = contact_lines[1] if len(contact_lines) > 1 else "Не указан"
+        client_name = contact_info.strip().split('\n')[0] if contact_info else "Клиент"
+        client_phone = contact_info.strip().split('\n')[1] if contact_info and '\n' in contact_info else "Не указан"
+
+        calendar_event_id = None
+        booking_status = "pending" # По умолчанию, требует ручного подтверждения
+
+        # 1. СНАЧАЛА пытаемся создать событие в Google Calendar
+        if hasattr(bot_logic.config, 'GOOGLE_CREDENTIALS_PATH'):
+            try:
+                calendar_service = GoogleCalendarService(
+                    credentials_path=bot_logic.config.GOOGLE_CREDENTIALS_PATH,
+                    calendar_id=bot_logic.config.GOOGLE_CALENDAR_ID
+                )
+                event_id = await calendar_service.create_booking(
+                    start_time=selected_slot.start,
+                    end_time=selected_slot.end,
+                    client_name=client_name,
+                    client_phone=client_phone,
+                    procedure=procedure_name
+                )
+                if event_id:
+                    calendar_event_id = event_id
+                    booking_status = "confirmed" # Если событие создано, статус - 'confirmed'
+                    logger.info(f"Событие успешно создано в Google Calendar: {event_id}")
+
+            except Exception as e:
+                logger.error(f"Не удалось создать событие в календаре, запись будет в статусе 'pending': {e}")
+
+        # 2. ПОСЛЕ этого создаем запись в нашей БД с актуальным статусом
+        booking_id = await database.create_booking(
+            user_id=callback.from_user.id,
+            booking_data={
+                "procedure": procedure_name,
+                "contact_info": contact_info,
+                "preferred_time": selected_slot.display,
+                "notes": f"Запись через бота. Telegram: @{callback.from_user.username}",
+                "status": booking_status, # <--- Используем вычисленный статус
+                "calendar_event_id": calendar_event_id, # <--- Сохраняем ID события
+                "calendar_slot": selected_slot.start.isoformat() # <--- Сохраняем точное время
+            }
+        )
 
         # Создаем запись в базе данных
         booking_id = await database.create_booking(
@@ -441,67 +493,48 @@ async def final_booking_confirmation_handler(callback: types.CallbackQuery, stat
             }
         )
 
-        # Пытаемся создать запись в Google Calendar
-        calendar_event_id = None
-        if hasattr(bot_logic.config, 'GOOGLE_CREDENTIALS_PATH'):
-            try:
-                calendar_service = GoogleCalendarService(
-                credentials_path=bot_logic.config.GOOGLE_CREDENTIALS_PATH,
-                calendar_id=bot_logic.config.GOOGLE_CALENDAR_ID
-            )
+        # Формируем сообщение для пользователя и администратора
+        if booking_status == "confirmed":
+            calendar_status_msg = "🗓️ <b>Запись добавлена в календарь косметолога!</b>"
+            admin_calendar_info = f"🗓️ ID события: {calendar_event_id}"
+        else:
+            calendar_status_msg = "📞 <b>Администратор свяжется с вами для подтверждения времени.</b>"
+            admin_calendar_info = "⚠️ <b>Требует ручного подтверждения времени!</b> (Ошибка календаря)"
 
-                calendar_event_id = await calendar_service.create_booking(
-                    start_time=selected_slot.start,
-                    end_time=selected_slot.end,
-                    client_name=client_name,
-                    client_phone=client_phone,
-                    procedure=procedure_name
-                )
-            except Exception as e:
-                logger.error(f"Ошибка создания события в календаре: {e}")
+        success_text = f"""✅ <b>ЗАЯВКА НА ЗАПИСЬ ПРИНЯТА!</b>
 
-        # Формируем сообщение об успешной записи
-        calendar_status = "🗓️ <b>Запись добавлена в календарь косметолога!</b>" if calendar_event_id else "📞 <b>Администратор подтвердит время записи.<b>"
-        success_text = f"""✅ <b>ЗАПИСЬ УСПЕШНО СОЗДАНА!</b>
-
-📋 <b>ДЕТАЛИ ЗАПИСИ:</b>
-🆔 Номер заявки: {booking_id}
+📋 <b>ДЕТАЛИ ЗАЯВКИ:</b>
+🆔 Номер: #{booking_id}
 🎯 Процедура: {procedure_name}
 📅 Дата и время: {selected_slot.display}
-{calendar_status}
+{calendar_status_msg}
+
     ⏰ <b>ЧТО ДАЛЬШЕ:</b>
-    1. За день до процедуры мы пришлем напоминание
-    2. За час до визита - SMS с подтверждением
-    3. Если нужно изменить время - звоните заранее
+    1. Мы пришлем напоминание за день до процедуры.
+    2. Если нужно изменить или отменить запись - свяжитесь с нами.
 
     📞 <b>КОНТАКТЫ:</b>
     {bot_logic.config.CLINIC_PHONE}
-    🏥 {bot_logic.config.CLINIC_ADDRESS}
+    """
 
-    ⚠️ <b>ВАЖНО:</b> Приходите за 10 минут до начала процедуры!"""
+        await callback.message.edit_text(success_text, reply_markup=None) # Убираем кнопки
+        await callback.message.answer("Вы можете вернуться в главное меню.", reply_markup=BotKeyboards.main_menu())
 
         # Уведомляем администратора
         if bot_logic.config.ADMIN_USER_ID:
-            calendar_info = f"🗓️ ID события: {calendar_event_id}" if calendar_event_id else "📞 Требует подтверждения времени"
-            admin_text = f"""📅 НОВАЯ ЗАПИСЬ ЧЕРЕЗ КАЛЕНДАРЬ
+            admin_text = f"""📅 НОВАЯ ЗАЯВКА #{booking_id}
 
-    👤 Клиент: {callback.from_user.full_name} (@{callback.from_user.username})
-    🎯 Процедура: {procedure_name}
-    📅 Время: {selected_slot.display}
-    📞 Контакты: {contact_info}
-    🆔 ID заявки: {booking_id}
-    {calendar_info}"""
+👤 Клиент: {callback.from_user.full_name} (@{callback.from_user.username})
+🎯 Процедура: {procedure_name}
+📅 Время: {selected_slot.display}
+📞 Контакты: {contact_info}
+{admin_calendar_info}"""
+            await callback.bot.send_message(bot_logic.config.ADMIN_USER_ID, admin_text)
 
-            try:
-                await callback.bot.send_message(bot_logic.config.ADMIN_USER_ID, admin_text)
-            except Exception as e:
-                logger.error(f"Не удалось отправить уведомление администратору: {e}")
-
-        await callback.message.answer(success_text, reply_markup=BotKeyboards.main_menu())
         await state.clear()
 
-        # Создаем напоминания
-        if hasattr(bot_logic, 'reminder_service') and bot_logic.reminder_service:
+        # Создаем напоминания ТОЛЬКО для подтвержденных записей
+        if booking_status == "confirmed" and hasattr(bot_logic, 'reminder_service'):
             try:
                 await bot_logic.reminder_service.create_booking_reminders(
                     user_id=callback.from_user.id,
@@ -513,25 +546,39 @@ async def final_booking_confirmation_handler(callback: types.CallbackQuery, stat
                 logger.error(f"Ошибка создания напоминаний: {e}")
 
     except Exception as e:
-        logger.error(f"Ошибка создания записи: {e}")
+        logger.exception(f"Критическая ошибка при создании записи для пользователя {callback.from_user.id}")
 
 
         error_text = f"""😔 <b>ОШИБКА ПРИ СОЗДАНИИ ЗАПИСИ</b>
-
-
     Произошла техническая ошибка. Ваша запись не была создана.
-
 
     📞 Пожалуйста, свяжитесь с администратором:
     {bot_logic.config.CLINIC_PHONE}
 
 
     Сообщите следующие данные:
-    • Желаемое время: {selected_slot_data['display'] if 'selected_slot_data' in locals() else 'не определено'}
-    • Процедура: {procedure_name if 'procedure_name' in locals() else 'не определена'}
-    • Ваше имя: {callback.from_user.full_name}"""
+    • Желаемое время: {selected_slot_display}
+    • Процедура: {procedure_name_display}
+    • Ваше имя: {callback.from_user.full_name}
 
+Приносим извинения за неудобства!"""
 
+# 3. Отправляем уведомление администратору об ошибке
+        if bot_logic.config.ADMIN_USER_ID:
+            admin_alert = f"""🚨 <b>Критическая ошибка у пользователя при записи!</b>
+
+• <b>Пользователь:</b> {callback.from_user.full_name} (@{callback.from_user.username}, ID: `{callback.from_user.id}`)
+• <b>Процедура:</b> {procedure_name_display}
+• <b>Время:</b> {selected_slot_display}
+• <b>Ошибка:</b> `{str(e)}`
+
+<i>Пожалуйста, проверьте логи. Возможно, стоит связаться с клиентом.</i>"""
+            try:
+                await callback.bot.send_message(bot_logic.config.ADMIN_USER_ID, admin_alert)
+            except Exception as admin_e:
+                logger.error(f"Не удалось отправить уведомление администратору об ошибке: {admin_e}")
+
+        # 4. Отправляем сообщение пользователю и очищаем состояние
         await callback.message.edit_text(error_text, reply_markup=BotKeyboards.contact_menu())
         await state.clear()
 

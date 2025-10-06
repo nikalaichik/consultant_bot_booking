@@ -1,14 +1,13 @@
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List
 from data.database import Database
 from aiogram import Bot
-import pytz
 
 logger = logging.getLogger(__name__)
 
-tz = pytz.timezone('Europe/Minsk')
+#tz = pytz.timezone('Europe/Minsk')
 #now = datetime.now(tz)
 
 class ReminderService:
@@ -90,8 +89,12 @@ class ReminderService:
         """Создает стандартные напоминания для записи"""
         try:
             # Напоминание за день
-            day_before = appointment_time - timedelta(days=1)
-            if day_before > datetime.now(tz):
+            # Конвертируем его в UTC.
+            appointment_time_utc = appointment_time.astimezone(timezone.utc)
+            # Напоминание за день
+            day_before = appointment_time_utc - timedelta(days=1)
+            # Напоминание за день
+            if day_before > datetime.now(timezone.utc):
                 day_message = f"""📅 **НАПОМИНАНИЕ О ЗАПИСИ**
 
 Завтра у вас запись на процедуру:
@@ -114,8 +117,8 @@ _Ждем вас в нашей клинике!_"""
                 )
 
             # Напоминание за 2 часа
-            two_hours_before = appointment_time - timedelta(hours=2)
-            if two_hours_before > datetime.now(tz):
+            two_hours_before = appointment_time_utc - timedelta(hours=2)
+            if two_hours_before > datetime.now(timezone.utc):
                 hour_message = f"""⏰ **НАПОМИНАНИЕ**
 
 Через 2 часа у вас запись:

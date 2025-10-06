@@ -68,7 +68,7 @@ class RateLimiterMiddleware(BaseMiddleware):
     async def __call__(self, handler, event, data):
         if isinstance(event, Message):
             user_id = event.from_user.id
-            now = time.time()
+            now = asyncio.get_event_loop().time()
             # Очистка старых сообщений
             self.user_counts[user_id] = [
                 t for t in self.user_counts[user_id] if now - t < self.window_seconds
@@ -117,13 +117,6 @@ async def check_and_prepare_knowledge_base(bot_logic: SimpleBotLogic):
 
 async def main():
     config = Config()
-    # Проверяем, что все ключи из .env загрузились, прежде чем что-то делать
-    if not all([config.BOT_TOKEN, config.OPENAI_API_KEY, config.PINECONE_API_KEY]):
-        raise ValueError(
-            "Один или несколько обязательных ключей API не найдены в .env файле. "
-            "Пожалуйста, проверьте наличие BOT_TOKEN, OPENAI_API_KEY и PINECONE_API_KEY."
-        )
-
 
     setup_logging(config)
     logger = logging.getLogger(__name__)

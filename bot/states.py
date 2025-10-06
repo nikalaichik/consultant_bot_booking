@@ -5,12 +5,6 @@ class UserStates(StatesGroup):
     waiting_for_skin_type = State()
     waiting_for_age = State()
     waiting_for_problem_description = State()
-    waiting_for_photo = State()
-
-    # Состояния для записи
-    booking_procedure = State()
-    booking_procedure_confirmation = State()
-    booking_contact_info = State()
 
     # Состояния для записи
     booking_procedure = State()

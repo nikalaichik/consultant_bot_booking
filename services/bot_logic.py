@@ -8,7 +8,6 @@ from services.openai_service import OpenAIService
 from services.embeddings import EmbeddingService
 from utils.security import sanitize_for_model
 
-#morph = pymorphy3.MorphAnalyzer()
 logger = logging.getLogger(__name__)
 
 INTENT_KEYWORDS = {
@@ -178,6 +177,40 @@ class SimpleBotLogic:
         self.openai_service = OpenAIService(config.OPENAI_API_KEY, config.OPENAI_MODEL, config.OPENAI_MODEL_MINI, config=config)
         self.reminder_service = None
 
+    async def get_info_from_kb(self, query: str, user_profile: dict = None) -> str:
+        """
+        "Легкий" метод: только поиск в Pinecone и генерация ответа OpenAI.
+        Не сохраняет историю, не работает с сессиями.
+        """
+        try:
+            # 1. Поиск в Pinecone (фильтры можно добавить по аналогии, если нужно)
+            search_results = await self.pinecone_service.search(
+                query=query,
+                top_k=2 # Достаточно 1-2 документов для краткой справки
+            )
+
+            # 2. Формирование контекста
+            if not search_results:
+                context = "Информация в базе знаний не найдена."
+            else:
+                context = "\n\n".join([
+                    f"{res['metadata']['title']}\n{res['metadata']['content']}"
+                    for res in search_results
+                ])
+
+            # 3. Генерация ответа (всегда используем 'consultation' intent для таких запросов)
+            response = await self.openai_service.generate_response(
+                user_message=query,
+                context=context,
+                intent="consultation",
+                user_profile=user_profile,
+                use_mini=True # Используем быструю модель для справок
+            )
+            return response
+        except Exception as e:
+            logger.error(f"Ошибка в get_info_from_kb: {e}")
+            return "К сожалению, не удалось загрузить информацию о процедуре."
+
     async def classify_intent(self, message: str) -> str:
         """Гибридная классификация намерений"""
 
@@ -254,11 +287,22 @@ class SimpleBotLogic:
 
             # Получаем историю (последние 5 сообщений)
             history = await self.database.get_user_conversations(user_id, limit=5)
-            # Формируем текстовую историю для GPT
-            history_text = "\n".join([
-                f"Пользователь: {h['message']}\nБот: {h['response']}"
-                for h in reversed(history)  # от старых к новым
-            ])
+
+            logger.info(f"История диалога: {history}")
+
+            # Обрезаем историю, чтобы уложиться в MAX_CONTEXT_LENGTH
+            if len(history_text) > self.config.MAX_CONTEXT_LENGTH:
+                history_text = history_text[-self.config.MAX_CONTEXT_LENGTH:]
+                # Находим ближайшую границу сообщения
+                last_newline = history_text.rfind("\n", 0, self.config.MAX_CONTEXT_LENGTH)
+                if last_newline != -1:
+                    history_text = history_text[last_newline + 1:]
+                logger.warning(f"История диалога обрезана до {self.config.MAX_CONTEXT_LENGTH} символов")
+                # Формируем текстовую историю для GPT
+                history_text = "\n".join([
+                    f"Пользователь: {h['message']}\nБот: {h['response']}"
+                    for h in reversed(history)  # от старых к новым
+                ])
             # Генерируем фильтры для поиска
             filters = self.generate_search_filters(message, user_session)
 

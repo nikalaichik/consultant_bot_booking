@@ -109,8 +109,10 @@ class Database:
                     procedure TEXT NOT NULL,
                     contact_info TEXT,
                     preferred_time TEXT,
-                    status TEXT DEFAULT 'pending' NOT NULL,
+                    status TEXT DEFAULT 'pending' NOT NULL, -- pending, confirmed, cancelled
                     notes TEXT,
+                    calendar_event_id TEXT, -- ID события в Google Calendar
+                    calendar_slot TIMESTAMP,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
                     FOREIGN KEY (user_id) REFERENCES users (telegram_id)
                 )
@@ -233,14 +235,17 @@ class Database:
         """Создает запись на процедуру."""
         async with self.get_connection() as conn:
             cursor = await conn.execute("""
-                INSERT INTO bookings (user_id, procedure, contact_info, preferred_time, notes, status)
-                VALUES (?, ?, ?, ?, ?, 'pending')
+                INSERT INTO bookings (user_id, procedure, contact_info, preferred_time, notes, status, calendar_event_id, calendar_slot)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 user_id,
                 booking_data.get('procedure'),
                 booking_data.get('contact_info'),
                 booking_data.get('preferred_time'),
-                booking_data.get('notes')
+                booking_data.get('notes'),
+                booking_data.get('status', 'pending'), # Статус по умолчанию 'pending'
+                booking_data.get('calendar_event_id'),
+                booking_data.get('calendar_slot')
             ))
             await conn.commit()
             return cursor.lastrowid
