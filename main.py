@@ -15,6 +15,7 @@ from data.loader import KnowledgeBaseLoader
 from services.session_manager import SessionManager
 from services.bot_logic import SimpleBotLogic
 from bot.handlers import start, fsm_consultation, fsm_booking, info_queries, admin, fallback
+from services.google_calendar_service import GoogleCalendarService
 
 # Настройка логирования
 def setup_logging(config: Config):
@@ -127,9 +128,18 @@ async def main():
     # Вызываем init_tables один раз при старте
     await database.init_tables()
 
+    try:
+        calendar_service = GoogleCalendarService(
+            credentials_path=config.GOOGLE_CREDENTIALS_PATH,
+            calendar_id=config.GOOGLE_CALENDAR_ID
+        )
+    except Exception as e:
+        logger.critical(f"Не удалось инициализировать Google Calendar. Бот не может быть запущен. Ошибка: {e}")
+        return # Останавливаем запуск бота
+
     # Инициализация менеджера сессий (файловый)
     session_manager = SessionManager(config.SESSIONS_DIR)
-    bot_logic = SimpleBotLogic(config, session_manager, database)
+    bot_logic = SimpleBotLogic(config, session_manager, database, calendar_service)
 
     await check_and_prepare_knowledge_base(bot_logic)
 

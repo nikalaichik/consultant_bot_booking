@@ -158,11 +158,7 @@ async def booking_confirmation_handler(callback: types.CallbackQuery, state: FSM
             await state.clear()
             return
         # Инициализируем Google Calendar сервис
-        calendar_service = GoogleCalendarService(
-            credentials_path=bot_logic.config.GOOGLE_CREDENTIALS_PATH,
-            calendar_id=bot_logic.config.GOOGLE_CALENDAR_ID,
-            timezone='Europe/Minsk'
-        )
+        calendar_service = bot_logic.calendar_service
 
         # Получаем доступные слоты
         slots = await calendar_service.get_available_slots(days_ahead=14)
@@ -448,10 +444,7 @@ async def final_booking_confirmation_handler(callback: types.CallbackQuery, stat
         # 1. СНАЧАЛА пытаемся создать событие в Google Calendar
         if hasattr(bot_logic.config, 'GOOGLE_CREDENTIALS_PATH'):
             try:
-                calendar_service = GoogleCalendarService(
-                    credentials_path=bot_logic.config.GOOGLE_CREDENTIALS_PATH,
-                    calendar_id=bot_logic.config.GOOGLE_CALENDAR_ID
-                )
+                calendar_service = bot_logic.calendar_service
                 event_id = await calendar_service.create_booking(
                     start_time=selected_slot.start,
                     end_time=selected_slot.end,

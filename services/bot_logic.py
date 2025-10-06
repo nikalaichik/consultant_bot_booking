@@ -7,6 +7,7 @@ from services.pinecone_service import PineconeService
 from services.openai_service import OpenAIService
 from services.embeddings import EmbeddingService
 from utils.security import sanitize_for_model
+from services.google_calendar_service import GoogleCalendarService
 
 logger = logging.getLogger(__name__)
 
@@ -159,10 +160,11 @@ class IntentClassifier:
 class SimpleBotLogic:
     """Упрощенная логика бота для VPS"""
 
-    def __init__(self, config, session_manager, database):
+    def __init__(self, config, session_manager, database, calendar_service: GoogleCalendarService):
         self.config = config
         self.session_manager = session_manager
         self.database = database
+        self.calendar_service = calendar_service
         self.intent_classifier = IntentClassifier()
         # Сначала создаем сервис эмбеддингов
         self.embedding_service = EmbeddingService(
