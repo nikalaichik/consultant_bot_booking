@@ -452,6 +452,15 @@ async def final_booking_confirmation_handler(callback: types.CallbackQuery, stat
                     client_phone=client_phone,
                     procedure=procedure_name
                 )
+
+                if event_id == "SLOT_OCCUPIED":
+                    await callback.message.edit_text(
+                    "😔 К сожалению, это время только что было занято. Пожалуйста, начните процесс записи заново и выберите другой слот.",
+        reply_markup=BotKeyboards.booking_selection_menu() # Предлагаем выбрать процедуру заново
+    )
+                    await state.clear()
+                    return # Прерываем выполнение
+
                 if event_id:
                     calendar_event_id = event_id
                     booking_status = "confirmed" # Если событие создано, статус - 'confirmed'

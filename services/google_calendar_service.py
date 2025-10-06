@@ -35,7 +35,8 @@ class GoogleCalendarService:
             # Создаем сервис
             self.service = build('calendar', 'v3', credentials=credentials)
             logger.info("Google Calendar API успешно инициализирован")
-
+        except FileNotFoundError:
+            logger.error(f"Файл credentials не найден по пути: {self.credentials_path}")
         except Exception as e:
             logger.error(f"Ошибка инициализации Google Calendar API: {e}")
             raise
@@ -247,10 +248,9 @@ class GoogleCalendarService:
         Returns:
             str: ID созданного события или None при ошибке
         """
-        async with self._lock:  # Защищаем от параллельных бронирований
-            # Проверяем, инициализирован ли сервис
-            if self.service is None:
-                await self.initialize()
+        if not self.service:
+            logger.error("Попытка создать запись без инициализированного сервиса Google Calendar.")
+            return None
 
         try:
             # Приводим время к локальному часовому поясу
@@ -258,12 +258,17 @@ class GoogleCalendarService:
             end_local = self._localize_datetime(end_time)
 
              # Проверяем, занят ли слот
-            busy_slots = await self._get_busy_slots(start_local, end_local)
+            busy_slots = await self._get_busy_slots(self._get_busy_slots, start_local, end_local)
 
-            if any(
-                slot['start'] < end_local and slot['end'] > start_local
-                for slot in busy_slots
-            ):
+            # 2. Правильно проверяем пересечение с занятыми слотами
+            is_occupied = False
+            for busy_start, busy_end in busy_slots:
+                # Условие пересечения временных интервалов: (StartA < EndB) and (EndA > StartB)
+                if start_local < busy_end and end_local > busy_start:
+                    is_occupied = True
+                    break
+
+            if is_occupied:
                 logger.warning(f"Попытка бронирования на занятый слот: {start_time}")
                 raise ValueError(
                     f"Выбранное время ({start_time.strftime('%Y-%m-%d %H:%M')}) занято. "
