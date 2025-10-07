@@ -292,6 +292,11 @@ class SimpleBotLogic:
 
             logger.info(f"История диалога: {history}")
 
+            # Формируем текстовую историю для GPT
+            history_text = "\n".join([
+                f"Пользователь: {h['message']}\nБот: {h['response']}"
+                for h in reversed(history)  # от старых к новым
+            ])
             # Обрезаем историю, чтобы уложиться в MAX_CONTEXT_LENGTH
             if len(history_text) > self.config.MAX_CONTEXT_LENGTH:
                 history_text = history_text[-self.config.MAX_CONTEXT_LENGTH:]
@@ -300,11 +305,7 @@ class SimpleBotLogic:
                 if last_newline != -1:
                     history_text = history_text[last_newline + 1:]
                 logger.warning(f"История диалога обрезана до {self.config.MAX_CONTEXT_LENGTH} символов")
-                # Формируем текстовую историю для GPT
-                history_text = "\n".join([
-                    f"Пользователь: {h['message']}\nБот: {h['response']}"
-                    for h in reversed(history)  # от старых к новым
-                ])
+
             # Генерируем фильтры для поиска
             filters = self.generate_search_filters(message, user_session)
 
