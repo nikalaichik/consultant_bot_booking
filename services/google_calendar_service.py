@@ -258,7 +258,11 @@ class GoogleCalendarService:
             end_local = self._localize_datetime(end_time)
 
              # Проверяем, занят ли слот
-            busy_slots = await self._get_busy_slots(self._get_busy_slots, start_local, end_local)
+            busy_slots = await asyncio.to_thread(
+                self._get_busy_slots,
+                start_local,
+                end_local
+            )
 
             # 2. Правильно проверяем пересечение с занятыми слотами
             is_occupied = False
