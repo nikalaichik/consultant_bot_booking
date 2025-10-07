@@ -29,21 +29,15 @@ def datetime_decoder(dct):
     return dct
 
 class SimpleFileStorage(BaseStorage):
-    """
-    Адаптированное файловое хранилище состояний, совместимое с aiogram.fsm.storage.base.BaseStorage.
-    """
+    """Асинхронное файловое хранилище FSM, безопасное для многопоточного доступа."""
 
     def __init__(self, storage_dir: Path, state_ttl_hours: int = 24):
         self.storage_dir = storage_dir
         self.state_ttl_hours = state_ttl_hours
         self.storage_dir.mkdir(exist_ok=True, parents=True)
-        # Кэш больше не нужен, так как aiogram кэширует состояния на уровне FSMContext
-
-        # Кэш для часто используемых состояний (опционально)
-        self._cache = {}
+        self._cache: Dict[str, Dict[str, Any]] = {}
         self._cache_max_size = 1000
-        # Блокировка для thread-safe операций
-        self._file_locks = {}
+        self._file_locks: Dict[str, asyncio.Lock] = {}
 
     def resolve_state(self, state: StateType) -> Optional[str]:
         """
@@ -84,8 +78,8 @@ class SimpleFileStorage(BaseStorage):
             # Обновляем состояние и временные метки
             storage_data.update({
                 "state": self.resolve_state(state),
-                "updated_at": datetime.now().isoformat(),
-                "expires_at": (datetime.now() + timedelta(hours=self.state_ttl_hours)).isoformat()
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "expires_at": (datetime.now(timezone.utc) + timedelta(hours=self.state_ttl_hours)).isoformat(),
             })
 
             # Если это первое сохранение - добавляем время создания
@@ -103,13 +97,9 @@ class SimpleFileStorage(BaseStorage):
         file_path = self._get_file_path(key)
 
         # Проверяем кэш
-        if file_key in self._cache:
-            cached_data = self._cache[file_key]
-            if self._is_data_valid(cached_data):
-                return cached_data.get("state")
-            else:
-                # Удаляем невалидные данные из кэша
-                del self._cache[file_key]
+        cached = self._cache.get(file_key)
+        if cached and self._is_data_valid(cached):
+            return cached.get("state")
 
         # Загружаем из файла
         storage_data = await self._load_from_file(file_path)
@@ -153,12 +143,9 @@ class SimpleFileStorage(BaseStorage):
         file_path = self._get_file_path(key)
 
         # Проверяем кэш
-        if file_key in self._cache:
-            cached_data = self._cache[file_key]
-            if self._is_data_valid(cached_data):
-                return cached_data.get("data", {})
-            else:
-                del self._cache[file_key]
+        cached = self._cache.get(file_key)
+        if cached and self._is_data_valid(cached):
+            return cached.get("data", {})
 
         # Загружаем из файла
         storage_data = await self._load_from_file(file_path)
@@ -192,59 +179,18 @@ class SimpleFileStorage(BaseStorage):
             logger.error(f"Ошибка сохранения файла состояния {file_path.name}: {e}")
             return False
 
-    async def _get_from_file(self, file_key: str) -> Optional[Dict]:
-        """Асинхронно читает данные из файла."""
-        file_path = self.storage_dir / file_key
-        if not file_path.exists():
-            return None
-
-        try:
-            # Используем asyncio.to_thread для неблокирующего чтения файла
-            content = await asyncio.to_thread(file_path.read_text, 'utf-8')
-            data = json.loads(content)
-
-            # Проверяем свежесть данных, чтобы не использовать устаревшие состояния
-            if self._is_data_fresh(data):
-                return data
-            else:
-                file_path.unlink() # Удаляем устаревший файл
-                return None
-
-        except (json.JSONDecodeError, IOError) as e:
-            logger.warning(f"Файл состояния {file_key} поврежден или нечитаем, удаляем. Ошибка: {e}")
-            file_path.unlink() # Удаляем поврежденный файл
-            return None
-
-    def _is_data_fresh(self, data: Dict, hours: int = 24) -> bool:
-        """Проверяет, что состояние не старше 24 часов."""
-        try:
-            timestamp = datetime.fromisoformat(data["timestamp"])
-            if timestamp.tzinfo is None:
-                timestamp = timestamp.replace(tzinfo=timezone.utc)
-            return datetime.now(timezone.utc) - timestamp < timedelta(hours=hours)
-        except (KeyError, ValueError):
-            return False
-
-    async def _save_to_file(self, file_path: Path, data: Dict) -> bool:
-        """Асинхронно сохраняет данные в файл с поддержкой datetime"""
-        try:
-            content = json.dumps(data, ensure_ascii=False, indent=2, cls=DateTimeEncoder)
-            await asyncio.to_thread(file_path.write_text, content, encoding='utf-8')
-            return True
-        except Exception as e:
-            logger.error(f"Ошибка сохранения файла состояния {file_path.name}: {e}")
-            return False
-
     async def _load_from_file(self, file_path: Path) -> Optional[Dict]:
         """Асинхронно загружает данные из файла с восстановлением datetime"""
         if not file_path.exists():
             return None
 
         try:
-            content = await asyncio.to_thread(file_path.read_text, encoding='utf-8')
+            # Используем asyncio.to_thread для неблокирующего чтения файла
+            content = await asyncio.to_thread(file_path.read_text, encoding="utf-8")
             return json.loads(content, object_hook=datetime_decoder)
-        except (json.JSONDecodeError, IOError, OSError) as e:
-            logger.warning(f"Ошибка чтения файла состояния FSM {file_path.name}: {e}")
+        except (json.JSONDecodeError, IOError) as e:
+            logger.warning(f"Ошибка чтения файла {file_path.name}: {e}")
+
             return None
 
     async def _remove_file(self, file_path: Path):
@@ -262,29 +208,17 @@ class SimpleFileStorage(BaseStorage):
 
         try:
             expires_at_str = data.get("expires_at")
-            if not expires_at_str:
-                # Если нет expires_at, проверяем updated_at
-                updated_at_str = data.get("updated_at")
-                if not updated_at_str:
-                    return False
+            if expires_at_str:
+                expires_at = datetime.fromisoformat(expires_at_str.replace("Z", "+00:00"))
+                return datetime.now(timezone.utc) < expires_at
 
-                if isinstance(updated_at_str, str):
-                    updated_at = datetime.fromisoformat(updated_at_str.replace('Z', '+00:00'))
-                else:
-                    updated_at = updated_at_str
-
-                ttl_hours = hours or self.state_ttl_hours
-                return datetime.now() - updated_at < timedelta(hours=ttl_hours)
-
-            if isinstance(expires_at_str, str):
-                expires_at = datetime.fromisoformat(expires_at_str.replace('Z', '+00:00'))
-            else:
-                expires_at = expires_at_str
-
-            return datetime.now() < expires_at
-
-        except (ValueError, TypeError) as e:
-            logger.debug(f"Ошибка проверки валидности данных: {e}")
+            updated_at_str = data.get("updated_at")
+            if updated_at_str:
+                updated_at = datetime.fromisoformat(updated_at_str.replace("Z", "+00:00"))
+                ttl = timedelta(hours=hours or self.state_ttl_hours)
+                return datetime.now(timezone.utc) - updated_at < ttl
+            return False
+        except Exception:
             return False
 
     def _update_cache(self, file_key: str, data: Dict):

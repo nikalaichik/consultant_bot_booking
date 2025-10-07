@@ -176,18 +176,27 @@ async def main():
     dp.update.middleware(DependenciesMiddleware(bot_logic=bot_logic, database=database))
     dp.update.middleware(RateLimiterMiddleware())
 
+    # --- Start cleanup task ---
+    session_manager.start_cleanup_task()
+
     # Запуск бота
     logger.info("🚀 Запуск бота...")
     try:
         await dp.start_polling(bot)
+    except asyncio.CancelledError:
+        logger.info("Отмена asyncio задач (graceful shutdown)")
     except Exception as e:
-        logger.error(f"Ошибка при работе бота: {e}", exc_info=True)
+        logger.exception(f"Ошибка при работе бота: {e}")
     finally:
         logger.info("🛑 Остановка бота...")
         # Останавливаем сервис напоминаний
         await bot_logic.shutdown()
+        await session_manager.stop_cleanup_task()
         await database.close_pool() # <-- Гарантированно закрываем соединение
         await bot.session.close()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\n🛑 Остановка по Ctrl+C")

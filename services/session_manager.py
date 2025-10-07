@@ -1,7 +1,7 @@
 import json
 import asyncio
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from datetime import datetime, timedelta, timezone
 import logging
 
@@ -10,10 +10,11 @@ logger = logging.getLogger(__name__)
 class SessionManager:
     """Менеджер пользовательских сессий с файловым хранением"""
 
-    def __init__(self, sessions_dir: Path):
-        self.sessions_dir = sessions_dir
-        self.sessions_cache = {}
-        self.cleanup_task = None
+    def __init__(self, sessions_dir: str):
+        self.sessions_dir = Path(sessions_dir)
+        self.sessions_dir.mkdir(parents=True, exist_ok=True)
+        self.sessions_cache: Dict[int, Dict[str, Any]] = {}
+        self.cleanup_task: Optional[asyncio.Task] = None
 
     async def start_cleanup_task(self):
         """Запускает задачу очистки старых сессий"""
@@ -23,23 +24,27 @@ class SessionManager:
         """Получает сессию пользователя"""
         if user_id in self.sessions_cache:
             session = self.sessions_cache[user_id]
-            if self._is_session_valid(session):
-                return session["data"]
+            return session
 
         # Загружаем из файла
         session_file = self.sessions_dir / f"user_{user_id}.json"
         if session_file.exists():
             try:
-                with open(session_file, 'r', encoding='utf-8') as f:
-                    session = json.load(f)
-                if self._is_session_valid(session):
-                    self.sessions_cache[user_id] = session
-                    return session["data"]
+                content = await asyncio.to_thread(session_file.read_text, encoding="utf-8")
+                session = json.loads(content)
+                self.sessions_cache[user_id] = session
+                return session
             except Exception as e:
                 logger.exception(f"Ошибка загрузки сессии {user_id}: {e}")
+                try:
+                    await asyncio.to_thread(session_file.unlink)
+                except Exception:
+                    logger.exception("Failed to delete corrupted session file %s", session_file)
 
         # Создаем новую сессию
-        return self._create_new_session(user_id)
+        session = {"data": {}, "updated_at": datetime.now(timezone.utc).isoformat()}
+        self.sessions_cache[user_id] = session
+        return session
 
     async def update_user_session(self, user_id: int, data: Dict[str, Any]):
         """Обновляет сессию пользователя"""
@@ -53,6 +58,17 @@ class SessionManager:
 
         # Сохраняем в файл асинхронно
         asyncio.create_task(self._save_session_to_file(user_id, session))
+        try:
+            await asyncio.to_thread(self._write_session_file_sync, user_id, data)
+        except Exception:
+            logger.exception("Sync write failed; scheduling background save task for user %s", user_id)
+            task = asyncio.create_task(self._save_session_to_file(user_id, data))
+            def _on_done(t: asyncio.Task):
+                try:
+                    _ = t.result()
+                except Exception:
+                    logger.exception("Background session save failed for user %s", user_id)
+            task.add_done_callback(_on_done)
 
     async def clear_user_session(self, user_id: int):
         """Очищает сессию пользователя"""
@@ -93,14 +109,17 @@ class SessionManager:
         except:
             return False
 
-    async def _save_session_to_file(self, user_id: int, session: Dict):
-        """Сохраняет сессию в файл"""
+    def _write_session_file_sync(self, user_id: int, data: dict):
         session_file = self.sessions_dir / f"user_{user_id}.json"
+        content = json.dumps(data, ensure_ascii=False, indent=2)
+        session_file.write_text(content, encoding="utf-8")
+
+    async def _save_session_to_file(self, user_id: int, data: dict):
+        """Сохраняет сессию в файл"""
         try:
-            with open(session_file, 'w', encoding='utf-8') as f:
-                json.dump(session, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            logger.exception(f"Ошибка сохранения сессии {user_id}: {e}")
+            await asyncio.to_thread(self._write_session_file_sync, user_id, data)
+        except Exception:
+            logger.exception("Ошибка сохранения сессии %s", user_id)
 
     async def _cleanup_sessions(self):
         """Периодическая очистка устаревших сессий"""

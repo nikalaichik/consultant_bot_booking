@@ -7,9 +7,6 @@ from aiogram import Bot
 
 logger = logging.getLogger(__name__)
 
-#tz = pytz.timezone('Europe/Minsk')
-#now = datetime.now(tz)
-
 class ReminderService:
     """Сервис для управления напоминаниями"""
 

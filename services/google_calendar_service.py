@@ -12,33 +12,29 @@ logger = logging.getLogger(__name__)
 class GoogleCalendarService:
     """Сервис для работы с Google Calendar API"""
 
-    def __init__(self,  credentials_path: str, calendar_id: str, timezone: str = 'Europe/Minsk'):
+    def __init__(self, credentials_path: str, calendar_id: str):
         self.credentials_path = credentials_path
         self.calendar_id = calendar_id
-        self.timezone = pytz.timezone(timezone)
-        self._lock = asyncio.Lock()  # Добавляем блокировку для транзакций
         self.service = None
+        self._lock = asyncio.Lock()
+        self._initialized = False
         self._initialize_service()
 
     def _initialize_service(self):
+        # Области доступа для календаря
+        SCOPES = ['https://www.googleapis.com/auth/calendar']
+
         """Инициализация Google Calendar API"""
         try:
-            # Области доступа для календаря
-            SCOPES = ['https://www.googleapis.com/auth/calendar']
-
-            # Загружаем credentials из JSON файла
-            credentials = Credentials.from_service_account_file(
-                self.credentials_path,
-                scopes=SCOPES
-            )
-
-            # Создаем сервис
+            credentials = Credentials.from_service_account_file(self.credentials_path, scopes=SCOPES)
             self.service = build('calendar', 'v3', credentials=credentials)
+            self._initialized = True
             logger.info("Google Calendar API успешно инициализирован")
-        except FileNotFoundError:
-            logger.error(f"Файл credentials не найден по пути: {self.credentials_path}")
+        except FileNotFoundError as e:
+            logger.critical("Файл credentials не найден по пути: %s", self.credentials_path)
+            raise RuntimeError("Файл credentials не найден") from e
         except Exception as e:
-            logger.error(f"Ошибка инициализации Google Calendar API: {e}")
+            logger.exception("Ошибка инициализации Google Calendar API")
             raise
 
     def _localize_datetime(self, dt: datetime) -> datetime:
@@ -248,9 +244,8 @@ class GoogleCalendarService:
         Returns:
             str: ID созданного события или None при ошибке
         """
-        if not self.service:
-            logger.error("Попытка создать запись без инициализированного сервиса Google Calendar.")
-            return None
+        if not self._initialized or self.service is None:
+            raise RuntimeError("Попытка создать запись без инициализированного сервиса Google Calendar.")
 
         try:
             # Приводим время к локальному часовому поясу
