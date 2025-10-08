@@ -128,7 +128,8 @@ async def main():
     try:
         calendar_service = GoogleCalendarService(
             credentials_path=config.GOOGLE_CREDENTIALS_PATH,
-            calendar_id=config.GOOGLE_CALENDAR_ID
+            calendar_id=config.GOOGLE_CALENDAR_ID,
+            timezone_str=config.TIMEZONE
         )
     except Exception as e:
         logger.critical(f"Не удалось инициализировать Google Calendar. Бот не может быть запущен. Ошибка: {e}")

@@ -12,9 +12,10 @@ logger = logging.getLogger(__name__)
 class GoogleCalendarService:
     """Сервис для работы с Google Calendar API"""
 
-    def __init__(self, credentials_path: str, calendar_id: str):
+    def __init__(self, credentials_path: str, calendar_id: str, timezone_str: str = 'Europe/Minsk'):
         self.credentials_path = credentials_path
         self.calendar_id = calendar_id
+        self.timezone = pytz.timezone(timezone_str)
         self.service = None
         self._lock = asyncio.Lock()
         self._initialized = False
