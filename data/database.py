@@ -73,6 +73,7 @@ class Database:
 
     async def init_tables(self):
         """Создает таблицы и индексы, если они не существуют."""
+
         async with self.get_connection() as conn:
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS users (
@@ -104,18 +105,18 @@ class Database:
             """)
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS bookings (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT, -- Явное указание AUTOINCREMENT для ясности
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER NOT NULL,
                     procedure TEXT NOT NULL,
                     contact_info TEXT,
                     preferred_time TEXT,
                     status TEXT DEFAULT 'pending' NOT NULL
-                        CHECK (status IN ('pending', 'confirmed', 'cancelled')), -- <-- База данных сама проверит значение
+                        CHECK (status IN ('pending', 'confirmed', 'cancelled')),
                     notes TEXT,
                     calendar_event_id TEXT,
-                    calendar_slot TEXT, -- было TIMESTAMP
-                    created_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime')) NOT NULL, -- было TIMESTAMP и другой способ получения времени
-                    FOREIGN KEY (user_id) REFERENCES users (telegram_id) ON DELETE CASCADE -- Добавлено каскадное удаление
+                    calendar_slot TEXT,
+                    created_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime')) NOT NULL,
+                    FOREIGN KEY (user_id) REFERENCES users (telegram_id) ON DELETE CASCADE
             """)
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS feedback (
@@ -136,10 +137,10 @@ class Database:
                     id INTEGER PRIMARY KEY,
                     user_id INTEGER NOT NULL,
                     booking_id INTEGER,
-                    reminder_type TEXT NOT NULL, -- 'day_before', 'hour_before', 'custom'
+                    reminder_type TEXT NOT NULL,
                     scheduled_time TIMESTAMP NOT NULL,
                     message_text TEXT NOT NULL,
-                    status TEXT DEFAULT 'pending' NOT NULL, -- 'pending', 'sent', 'failed'
+                    status TEXT DEFAULT 'pending' NOT NULL,
                     attempts INTEGER DEFAULT 0 NOT NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
                     sent_at TIMESTAMP,
