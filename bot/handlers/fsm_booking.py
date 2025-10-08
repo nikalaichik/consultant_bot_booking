@@ -174,18 +174,17 @@ async def booking_confirmation_handler(callback: types.CallbackQuery, state: FSM
             return
 
         # Сохраняем слоты в кэш и состояние (сериализуем для FSM)
-        user_id = callback.from_user.id
+
         available_slots = [Slot.deserialize(s) for s in slots]
-        #_available_slots_cache[user_id] = available_slots
+
         serialized_slots = [s.serialize() for s in available_slots]
         await state.update_data(available_slots=serialized_slots)
 
         # Группируем слоты по датам для лучшего отображения
         grouped_slots = group_slots_by_date(available_slots)
-        dates_count = len(grouped_slots)
 
         text = f"📅 <b>Выберите удобное время для записи на {procedure_name}:</b>\n\n"
-        text += f"📊 Найдено времени: {len(available_slots)} слотов на {dates_count} дней\n"
+        text += f"📊 Найдено времени: {len(available_slots)} слотов на {len(grouped_slots)} дней\n"
         text += "⏰ Выберите дату и время:"
 
 
@@ -205,14 +204,13 @@ async def booking_confirmation_handler(callback: types.CallbackQuery, state: FSM
 )
         await state.clear()
 
-def group_slots_by_date(slots):
+def group_slots_by_date(slots: list[Slot]) -> dict[str, list[Slot]]:
     """Группирует слоты по датам"""
     grouped = {}
     for slot in slots:
-        date = slot.date_str
-        if date not in grouped:
-            grouped[date] = []
-        grouped[date].append(slot)
+        if slot.date_str not in grouped:
+            grouped[slot.date_str] = []
+        grouped[slot.date_str].append(slot)
     return grouped
 
 @router.callback_query(StateFilter(UserStates.booking_time_selection), F.data.startswith("time_page_"))
@@ -237,7 +235,7 @@ async def time_pagination_handler(callback: types.CallbackQuery, state: FSMConte
         reply_markup=create_time_slots_keyboard(available_slots, page=page)
 )
 
-def create_time_slots_keyboard(available_slots, page=0, slots_per_page=8):
+def create_time_slots_keyboard(available_slots: list[Slot], page: int = 0) -> types.InlineKeyboardMarkup:
     """Создает клавиатуру с временными слотами"""
     from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
@@ -252,38 +250,22 @@ def create_time_slots_keyboard(available_slots, page=0, slots_per_page=8):
     page_dates = dates[start_date_idx:end_date_idx]
 
     buttons = []
-    slot_index = 0
+    # Находим глобальный индекс первого слота на текущей странице
+    global_slot_idx_offset = sum(len(grouped_slots[date]) for date in dates[:start_date_idx])
 
-    # Находим индекс первого слота на этой странице
-    for date in dates[:start_date_idx]:
-        slot_index += len(grouped_slots[date])
-
+    current_global_idx = global_slot_idx_offset
+    # Заголовок дня
     for date in page_dates:
         day_slots = grouped_slots[date]
-
-        # Заголовок дня
-        first_slot = day_slots[0]
-        buttons.append([
-            InlineKeyboardButton(
-                text=f"📅 {date} ({first_slot.weekday})",
-                callback_data="date_header"
-            )
-        ])
+        buttons.append([types.InlineKeyboardButton(text=f"📅 {date} ({day_slots[0].weekday})", callback_data="date_header")])
 
         #Слоты времени для этого дня (группами по 3)
         for i in range(0, len(day_slots), 3):
-            row_buttons = []
-            for j in range(i, min(i + 3, len(day_slots))):
-                slot = day_slots[j]
-                row_buttons.append(
-                    InlineKeyboardButton(
-                        text=f"⏰ {slot.time_str}",
-                        callback_data=f"time_{slot_index + j}"
-                    )
-                )
-            buttons.append(row_buttons)
+            row_buttons = [types.InlineKeyboardButton(text=f"⏰ {slot.time_str}", callback_data=f"time_{current_global_idx + j}")
+                for j, slot in enumerate(day_slots[i:i+3])]
 
-        slot_index += len(day_slots)
+            buttons.append(row_buttons)
+        current_global_idx += len(day_slots)
 
         # Разделитель между датами
         if date != page_dates[-1]:
@@ -320,7 +302,6 @@ async def time_slot_selected_handler(callback: types.CallbackQuery, state: FSMCo
         user_data = await state.get_data()
         serialized_slots = user_data.get("available_slots", [])
 
-
         if slot_index >= len(serialized_slots):
             await callback.message.edit_text("Ошибка выбора времени. Попробуйте снова.")
             return
@@ -346,9 +327,8 @@ async def time_slot_selected_handler(callback: types.CallbackQuery, state: FSMCo
 
         <b>Пример:</b>
         Анна Петрова
-        +7 912 345-67-89
+        +375 29 345-67-89
         Предпочитаю утром, есть аллергия на йод"""
-
 
         await callback.message.edit_text(contact_text)
         await state.set_state(UserStates.booking_contact_info)
@@ -393,7 +373,7 @@ async def contact_info_handler(message: types.Message, state: FSMContext):
         )
     await state.set_state(UserStates.booking_final_confirmation)
 
-def create_final_confirmation_keyboard():
+def create_final_confirmation_keyboard() -> types.InlineKeyboardMarkup:
     """Создает клавиатуру финального подтверждения"""
     from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
@@ -414,22 +394,23 @@ async def final_booking_confirmation_handler(callback: types.CallbackQuery, stat
     """Финальное подтверждение записи - создание записи в календаре и БД"""
     await callback.answer()
     await callback.message.edit_text("⏳ Создаем запись в календаре... Пожалуйста, подождите.")
-    user_data = {}
-    selected_slot_display = "не определено"
-    procedure_name_display = "не определена"
+    #user_data = {}
+    #selected_slot_display = "не определено"
+    #procedure_name_display = "не определена"
     try:
         user_data = await state.get_data()
         # Безопасно получаем данные для отображения в случае ошибки
-        selected_slot_data = user_data.get("selected_slot")
-        if selected_slot_data:
-            selected_slot_display = selected_slot_data.get('display', 'не определено')
-        procedure_name_display = user_data.get("procedure_name", "не определена")
 
-        selected_slot = Slot.deserialize(user_data.get("selected_slot"))
         #selected_slot_data = user_data.get("selected_slot")
-        procedure_name = user_data.get("procedure_name")
+        #if selected_slot_data:
+        #    selected_slot_display = selected_slot_data.get('display', 'не определено')
+        #procedure_name_display = user_data.get("procedure_name", "не определена")
+
+        selected_slot = Slot.deserialize(user_data["selected_slot"])
+        #selected_slot_data = user_data.get("selected_slot")
+        procedure_name = user_data["procedure_name"]
         #procedure = user_data.get("procedure")
-        contact_info = user_data.get("contact_info")
+        contact_info = user_data["contact_info"]
 
         # Восстанавливаем Slot
         #selected_slot = Slot.deserialize(selected_slot_data)
@@ -444,8 +425,7 @@ async def final_booking_confirmation_handler(callback: types.CallbackQuery, stat
         # 1. СНАЧАЛА пытаемся создать событие в Google Calendar
         if hasattr(bot_logic.config, 'GOOGLE_CREDENTIALS_PATH'):
             try:
-                calendar_service = bot_logic.calendar_service
-                event_id = await calendar_service.create_booking(
+                event_data = await bot_logic.calendar_service.create_booking(
                     start_time=selected_slot.start,
                     end_time=selected_slot.end,
                     user_id=callback.from_user.id,
@@ -455,7 +435,7 @@ async def final_booking_confirmation_handler(callback: types.CallbackQuery, stat
                     username=callback.from_user.username
                 )
 
-                if event_id == "SLOT_OCCUPIED":
+                if event_data == "SLOT_OCCUPIED":
                     await callback.message.edit_text(
                     "😔 К сожалению, это время только что было занято. Пожалуйста, начните процесс записи заново и выберите другой слот.",
         reply_markup=BotKeyboards.booking_selection_menu() # Предлагаем выбрать процедуру заново
@@ -463,13 +443,13 @@ async def final_booking_confirmation_handler(callback: types.CallbackQuery, stat
                     await state.clear()
                     return # Прерываем выполнение
 
-                if event_id:
-                    calendar_event_id = event_id
+                if isinstance(event_data, dict) and 'id' in event_data:
+                    calendar_event_id = event_data['id']
                     booking_status = "confirmed" # Если событие создано, статус - 'confirmed'
-                    logger.info(f"Событие успешно создано в Google Calendar: {event_id}")
+                    logger.info(f"Событие успешно создано в Google Calendar: {event_data}")
 
             except Exception as e:
-                logger.error(f"Не удалось создать событие в календаре, запись будет в статусе 'pending': {e}")
+                logger.error(f"Не удалось создать событие в календаре, запись будет в статусе 'pending': {e}", exc_info=True)
 
         # 2. ПОСЛЕ этого создаем запись в нашей БД с актуальным статусом
         booking_id = await database.create_booking(
@@ -535,8 +515,6 @@ async def final_booking_confirmation_handler(callback: types.CallbackQuery, stat
 {admin_calendar_info}"""
             await callback.bot.send_message(bot_logic.config.ADMIN_USER_ID, admin_text)
 
-        await state.clear()
-
         # Создаем напоминания ТОЛЬКО для подтвержденных записей
         if booking_status == "confirmed" and hasattr(bot_logic, 'reminder_service'):
             try:
@@ -547,11 +525,12 @@ async def final_booking_confirmation_handler(callback: types.CallbackQuery, stat
                     procedure_name=procedure_name
                 )
             except Exception as e:
-                logger.error(f"Ошибка создания напоминаний: {e}")
-
+                logger.error(f"Ошибка создания напоминаний: {e}", exc_info=True)
+        await state.clear()
     except Exception as e:
         logger.exception(f"Критическая ошибка при создании записи для пользователя {callback.from_user.id}")
-
+        selected_slot_display = user_data.get("selected_slot", {}).get('display', 'не определено')
+        procedure_name_display = user_data.get("procedure_name", "не определена")
 
         error_text = f"""😔 <b>ОШИБКА ПРИ СОЗДАНИИ ЗАПИСИ</b>
     Произошла техническая ошибка. Ваша запись не была создана.
@@ -591,23 +570,18 @@ async def change_time_handler(callback: types.CallbackQuery, state: FSMContext):
     """Возврат к выбору времени"""
     await callback.answer()
 
-
     user_data = await state.get_data()
     serialized_slots = user_data.get("available_slots", [])
     procedure_name = user_data.get("procedure_name", "процедуру")
 
-
     available_slots = [Slot.deserialize(s) for s in serialized_slots]
 
-
     text = f"📅 <b>Выберите другое время для записи на {procedure_name}:</b>\n\n⏰ Доступные дата и время:"
-
 
     await callback.message.edit_text(
         text,
         reply_markup=create_time_slots_keyboard(available_slots, page=0)
         )
-
 
     await state.set_state(UserStates.booking_time_selection)
 
@@ -617,7 +591,6 @@ async def universal_cancel_booking_handler(callback: types.CallbackQuery, state:
     """Универсальный обработчик отмены записи на любом этапе"""
     await callback.answer()
     await state.clear()
-
 
     await callback.message.edit_text(
         "❌ Запись отменена.\n\nВы можете начать новую запись или вернуться в главное меню.",

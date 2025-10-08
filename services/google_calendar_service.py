@@ -253,27 +253,15 @@ class GoogleCalendarService:
             start_local = self._localize_datetime(start_time)
             end_local = self._localize_datetime(end_time)
 
-             # Проверяем, занят ли слот
-            busy_slots = await asyncio.to_thread(
-                self._get_busy_slots,
-                start_local,
-                end_local
-            )
-
             # 2. Правильно проверяем пересечение с занятыми слотами
-            is_occupied = False
-            for busy_start, busy_end in busy_slots:
-                # Условие пересечения временных интервалов: (StartA < EndB) and (EndA > StartB)
-                if start_local < busy_end and end_local > busy_start:
-                    is_occupied = True
-                    break
+            busy_slots = await asyncio.to_thread(self._get_busy_slots, start_local, end_local)
+            is_occupied = any(start_local < busy_end and end_local > busy_start for busy_start, busy_end in busy_slots)
 
             if is_occupied:
                 logger.warning(f"Попытка бронирования на занятый слот: {start_time}")
-                raise ValueError(
-                    f"Выбранное время ({start_time.strftime('%Y-%m-%d %H:%M')}) занято. "
-                    "Пожалуйста, выберите другое время."
-                )
+                # Возвращаем специальное значение, чтобы хендлер понял, что слот занят
+                return "SLOT_OCCUPIED"
+
             # Описание для администратора
             description_lines = []
             if username:
