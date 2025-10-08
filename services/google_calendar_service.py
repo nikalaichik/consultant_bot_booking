@@ -319,17 +319,17 @@ class GoogleCalendarService:
             }
 
             # Создаем событие в отдельном потоке
-            created_event = await asyncio.to_thread(
-                self.service.events().insert,
-                calendarId=self.calendar_id,
-                body=event
+            # Выполняем запрос в отдельном потоке
+            event_data = await asyncio.to_thread(
+                self.service.events().insert(calendarId=self.calendar_id, body=event).execute
             )
 
-            if created_event:
-                event_data = created_event.execute()
-                event_id = created_event['id']
+            if event_data and 'id' in event_data:
                 logger.info("Создано событие: %s для пользователя %s", event_data.get("id"), user_id)
-            return event_data
+                return event_data
+            else:
+                logger.error("Не удалось создать событие, ответ от Google не содержит ID.")
+                return None
 
         except Exception as e:
             logger.error(f"Ошибка создания записи в календаре: {e}")
