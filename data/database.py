@@ -104,18 +104,18 @@ class Database:
             """)
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS bookings (
-                    id INTEGER PRIMARY KEY,
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, -- Явное указание AUTOINCREMENT для ясности
                     user_id INTEGER NOT NULL,
                     procedure TEXT NOT NULL,
                     contact_info TEXT,
                     preferred_time TEXT,
-                    status TEXT DEFAULT 'pending' NOT NULL, -- pending, confirmed, cancelled
+                    status TEXT DEFAULT 'pending' NOT NULL
+                        CHECK (status IN ('pending', 'confirmed', 'cancelled')), -- <-- База данных сама проверит значение
                     notes TEXT,
-                    calendar_event_id TEXT, -- ID события в Google Calendar
-                    calendar_slot TIMESTAMP,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-                    FOREIGN KEY (user_id) REFERENCES users (telegram_id)
-                )
+                    calendar_event_id TEXT,
+                    calendar_slot TEXT, -- было TIMESTAMP
+                    created_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime')) NOT NULL, -- было TIMESTAMP и другой способ получения времени
+                    FOREIGN KEY (user_id) REFERENCES users (telegram_id) ON DELETE CASCADE -- Добавлено каскадное удаление
             """)
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS feedback (

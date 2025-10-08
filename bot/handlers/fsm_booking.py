@@ -448,9 +448,11 @@ async def final_booking_confirmation_handler(callback: types.CallbackQuery, stat
                 event_id = await calendar_service.create_booking(
                     start_time=selected_slot.start,
                     end_time=selected_slot.end,
+                    user_id=callback.from_user.id,
                     client_name=client_name,
                     client_phone=client_phone,
-                    procedure=procedure_name
+                    procedure=procedure_name,
+                    username=callback.from_user.username
                 )
 
                 if event_id == "SLOT_OCCUPIED":
