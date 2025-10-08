@@ -14,7 +14,7 @@ from data.database import Database
 from data.loader import KnowledgeBaseLoader
 from services.session_manager import SessionManager
 from services.bot_logic import SimpleBotLogic
-from bot.handlers import start, fsm_consultation, fsm_booking, info_queries, admin, fallback
+from bot.handlers import start, admin, my_bookings, fsm_consultation, fsm_booking, info_queries, fallback
 from services.google_calendar_service import GoogleCalendarService
 
 # Настройка логирования
@@ -36,10 +36,7 @@ async def set_bot_commands(bot: Bot):
     """
     commands = [
         BotCommand(command="start", description="🔄 Перезапустить бота"),
-        BotCommand(command="menu", description="🏠 Главное меню"),
-        # Можете добавить и другие команды, например:
-        # BotCommand(command="help", description="❓ Помощь"),
-        # BotCommand(command="contacts", description="📞 Контакты")
+        BotCommand(command="menu", description="🏠 Главное меню")
     ]
     await bot.set_my_commands(commands, BotCommandScopeDefault())
 
@@ -161,7 +158,7 @@ async def main():
 
     # 2. Основные команды и кнопки главного меню
     dp.include_router(start.router)
-    #dp.include_router(reminders.router)
+    dp.include_router(my_bookings.router)
     # 3. Сценарии FSM (консультация и запись)
     dp.include_router(fsm_consultation.router)
     dp.include_router(fsm_booking.router)

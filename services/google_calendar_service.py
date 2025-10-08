@@ -1,6 +1,6 @@
 import logging
 import pytz
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional, Tuple
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
@@ -236,8 +236,8 @@ class GoogleCalendarService:
         days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
         return days[weekday]
 
-    async def create_booking(self, start_time: datetime, end_time: datetime,
-                           client_name: str, client_phone: str, procedure: str, notes: str = "") -> Optional[str]:
+    async def create_booking(self, start_time: datetime, end_time: datetime, user_id: int,
+        client_name: str, client_phone: str, procedure: str, username: str = None, notes: str = "") -> Optional[str]:
         """
         Создает запись в календаре (требует разрешений на запись)
 
@@ -273,15 +273,28 @@ class GoogleCalendarService:
                     f"Выбранное время ({start_time.strftime('%Y-%m-%d %H:%M')}) занято. "
                     "Пожалуйста, выберите другое время."
                 )
+            # Описание для администратора
+            description_lines = []
+            if username:
+                description_lines.append(f"👤 Клиент: {client_name} (@{username})")
+            description_lines.append(f"User ID: {user_id}")
+            if client_phone:
+                description_lines.append(f"📞 Телефон: {client_phone}")
+            if procedure:
+                description_lines.append(f"🎯 Услуга: {procedure}")
+            if notes:
+                description_lines.append(f"📝 Заметки: {notes}")
+            description = "\n".join(description_lines)
 
             event = {
                 'summary': f'💅 {procedure}',
-                'description': f"""👤 Клиент: {client_name}
-📞 Телефон: {client_phone}
-🎯 Процедура: {procedure}
-📝 Заметки: {notes}
-
-✨ Запись создана через Telegram бота""",
+                'description': description +'\n✨ Запись создана через Telegram бота',
+                "extendedProperties": {
+                    "private": {
+                        "user_id": str(user_id),
+                        "username": username or "",
+                    }
+        },
                 'start': {
                     'dateTime': start_local.isoformat(),
                     'timeZone': str(self.timezone),
@@ -306,16 +319,16 @@ class GoogleCalendarService:
 
             # Создаем событие в отдельном потоке
             created_event = await asyncio.to_thread(
-                self._create_event_sync,
-                event
+                self.service.events().insert,
+                calendarId=self.calendar_id,
+                body=event
             )
 
             if created_event:
+                event_data = created_event.execute()
                 event_id = created_event['id']
-                logger.info(f"Создана запись в календаре: {event_id} на {start_local}")
-                return event_id
-
-            return None
+                logger.info("Создано событие: %s для пользователя %s", event_data.get("id"), user_id)
+            return event_data
 
         except Exception as e:
             logger.error(f"Ошибка создания записи в календаре: {e}")
@@ -381,7 +394,9 @@ class GoogleCalendarService:
                 calendarId=self.calendar_id,
                 eventId=event_id
             )
-
+            # 🔔 отменяем локальные напоминания, если они есть
+            if hasattr(self, "reminder_service"):
+                await self.reminder_service.cancel_booking_reminders(event_id)
             logger.info(f"Отменена запись в календаре: {event_id}")
             return True
 
@@ -446,4 +461,33 @@ class GoogleCalendarService:
 
         except Exception as e:
             logger.error(f"Ошибка получения ближайших событий: {e}")
+            return []
+
+    async def get_user_bookings(self, user_identifier: str | int) -> list:
+        """Возвращает список событий, созданных для конкретного пользователя (по user_id)."""
+        if not self.service:
+            raise RuntimeError("Google Calendar service not initialized")
+
+        now = datetime.now(timezone.utc).isoformat()
+        try:
+            events_result = await asyncio.to_thread(
+                self.service.events().list,
+                calendarId=self.calendar_id,
+                timeMin=now,
+                maxResults=5,
+                singleEvents=True,
+                orderBy='startTime'
+            )
+            events = events_result.execute().get('items', [])
+
+            filtered = []
+            for e in events:
+                props = e.get('extendedProperties', {}).get('private', {})
+                if props.get('user_id') == str(user_identifier):
+                    filtered.append(e)
+
+            return filtered
+
+        except Exception as e:
+            logger.exception("Ошибка при получении записей пользователя: %s", e)
             return []

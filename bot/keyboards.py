@@ -1,5 +1,6 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 from config import Config
+from datetime import datetime
 import re
 
 class BotKeyboards:
@@ -11,7 +12,7 @@ class BotKeyboards:
                 [KeyboardButton(text="💬 Консультация"), KeyboardButton(text="📅 Записаться")],
                 [KeyboardButton(text="💰 Цены"), KeyboardButton(text="🏥 О клинике")],
                 [KeyboardButton(text="📞 Контакты"), KeyboardButton(text="❓ Помощь")],
-                [KeyboardButton(text="🔔 Мои напоминания")]
+                [KeyboardButton(text="🔔 Мои напоминания"), KeyboardButton(text="Мои записи")]
 
             ],
             resize_keyboard=True
@@ -46,7 +47,8 @@ class BotKeyboards:
             [InlineKeyboardButton(text="💨 Карбокситерапия", callback_data="proc_carboxy")],
             [InlineKeyboardButton(text="🎯 Микронидлинг", callback_data="proc_microneedling")],
             [InlineKeyboardButton(text="👐 Массажи", callback_data="proc_massage")],
-            [InlineKeyboardButton(text="🔄 Мезопилинг", callback_data="proc_mesopeel")]
+            [InlineKeyboardButton(text="🔄 Мезопилинг", callback_data="proc_mesopeel")],
+            [InlineKeyboardButton(text="💬 Консультация", callback_data="proc_consultation")]
         ])
 
     @staticmethod
@@ -161,7 +163,7 @@ class BotKeyboards:
                 buttons.append([InlineKeyboardButton(text=f"Записаться на {procedure_name}", callback_data=callback_data)])
 
         # Всегда добавляем кнопку для общей консультации
-        buttons.append([InlineKeyboardButton(text="📅 Записаться на консультацию к врачу", callback_data="book_consultation")])
+        buttons.append([InlineKeyboardButton(text="📅 Записаться на консультацию", callback_data="book_consultation")])
 
         if not buttons:
             # Если вдруг ничего не нашли, возвращаем стандартное меню
@@ -214,3 +216,29 @@ class BotKeyboards:
         [InlineKeyboardButton(text="📋 Мои напоминания", callback_data="my_reminders")],
         [InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_main")]
     ])
+
+    @staticmethod
+    def build_bookings_keyboard(events: list) -> InlineKeyboardMarkup:
+        """Создаёт клавиатуру с записями пользователя."""
+        buttons = []
+        for e in events:
+            start = e["start"].get("dateTime", e["start"].get("date"))
+            # Используем fromisoformat и указываем часовой пояс UTC
+            dt = datetime.fromisoformat(start).astimezone().strftime("%d.%m %H:%M")
+            title = e.get("summary", "Без названия")
+            buttons.append(
+                [InlineKeyboardButton(text=f"{dt} — {title}", callback_data=f"choose_cancel:{e['id']}")]
+            )
+        if not buttons:
+            buttons = [[InlineKeyboardButton(text="Нет записей", callback_data="noop")]]
+        return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    @staticmethod
+    def confirm_keyboard(event_id: str) -> InlineKeyboardMarkup:
+        """Клавиатура подтверждения отмены."""
+        return InlineKeyboardMarkup(inline_keyboard=[
+            [
+                InlineKeyboardButton(text="✅ Да, отменить", callback_data=f"confirm_cancel:{event_id}"),
+                InlineKeyboardButton(text="❌ Нет", callback_data="cancel_back")
+            ]
+        ])

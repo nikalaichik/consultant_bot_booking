@@ -391,3 +391,9 @@ class SimpleBotLogic:
         """Корректное завершение работы"""
         if self.reminder_service:
             await self.reminder_service.stop()
+
+    async def get_user_bookings(self, user_id: str):
+        return await self.calendar_service.get_user_bookings(user_id)
+
+    async def cancel_booking(self, event_id: str):
+        return await self.calendar_service.cancel_booking(event_id)
