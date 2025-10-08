@@ -376,21 +376,36 @@ class GoogleCalendarService:
             return False
 
     async def cancel_booking(self, event_id: str) -> bool:
-        """Отменяет запись в календаре"""
+        """Отменяет запись в календаре, выполняя запрос."""
         try:
-            await asyncio.to_thread(
-                self.service.events().delete,
-                calendarId=self.calendar_id,
-                eventId=event_id
-            )
-            # 🔔 отменяем локальные напоминания, если они есть
+            # Создаем функцию, которая будет выполнена в отдельном потоке.
+            # Она включает в себя и создание запроса, и его выполнение.
+            def delete_event_sync():
+                self.service.events().delete(
+                    calendarId=self.calendar_id,
+                    eventId=event_id
+                ).execute() #
+
+            # Запускаем эту функцию в потоке
+            await asyncio.to_thread(delete_event_sync)
+
+            # отменяем локальные напоминания, если они есть
             if hasattr(self, "reminder_service"):
-                await self.reminder_service.cancel_booking_reminders(event_id)
-            logger.info(f"Отменена запись в календаре: {event_id}")
+                # Запускаем в фоне, чтобы не задерживать ответ пользователю
+                asyncio.create_task(self.reminder_service.cancel_booking_reminders(event_id))
+
+            logger.info(f"Успешно выполнен запрос на отмену записи в календаре: {event_id}")
             return True
 
+        except HttpError as e:
+            # Обрабатываем случай, если событие уже удалено (ошибка 410 Gone)
+            if e.resp.status == 410:
+                logger.warning(f"Попытка отменить уже удаленную запись: {event_id}")
+                return True # Считаем это успехом
+            logger.error(f"Ошибка API при отмене записи: {e}")
+            return False
         except Exception as e:
-            logger.error(f"Ошибка отмены записи: {e}")
+            logger.error(f"Неизвестная ошибка при отмене записи: {e}", exc_info=True)
             return False
 
     async def check_calendar_access(self) -> bool:
