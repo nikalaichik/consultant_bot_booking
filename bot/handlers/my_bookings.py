@@ -16,8 +16,8 @@ router = Router()
 @router.message(F.text.lower() == "мои записи")
 async def show_my_bookings(message: Message, bot_logic):
     """Показывает пользователю его записи из календаря."""
-    user_email = message.from_user.username or str(message.from_user.id)
-    events = await bot_logic.get_user_bookings(user_email)
+    user_id = message.from_user.id
+    events = await bot_logic.get_user_bookings(user_id)
 
     if not events:
         await message.answer("У вас пока нет активных записей 😊")
