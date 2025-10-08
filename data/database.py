@@ -117,6 +117,7 @@ class Database:
                     calendar_slot TEXT,
                     created_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime')) NOT NULL,
                     FOREIGN KEY (user_id) REFERENCES users (telegram_id) ON DELETE CASCADE
+                )
             """)
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS feedback (
