@@ -7,6 +7,7 @@ from datetime import datetime
 import logging
 from config import Config
 from bot.keyboards import BotKeyboards
+import asyncio
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -40,22 +41,39 @@ async def ask_cancel_confirmation(callback: CallbackQuery, bot_logic):
 async def confirm_cancel(callback: CallbackQuery, bot_logic, bot):
     """Удаляет запись из календаря и уведомляет админа."""
     event_id = callback.data.split(":", 1)[1]
+    # Сначала показываем пользователю, что мы работаем
+    await callback.message.edit_text("🔄 Отменяем запись...")
+
     ok = await bot_logic.cancel_booking(event_id)
 
     if ok:
-        await callback.message.edit_text("✅ Запись успешно отменена.")
-        # уведомляем администратора
+        # Даем Google API секунду на обновление
+        await asyncio.sleep(1)
+
+        # Уведомляем администратора
         admin_id = getattr(Config, "ADMIN_CHAT_ID", None)
         if admin_id:
             user = callback.from_user
             username = f"@{user.username}" if user.username else f"id:{user.id}"
             try:
-                await bot.send_message(
-                    admin_id,
-                    f"🚫 Клиент {username} отменил запись (ID {event_id})."
-                )
+                await bot.send_message(admin_id, f"🚫 Клиент {username} отменил запись.")
             except Exception as e:
                 logger.error(f"Не удалось уведомить администратора: {e}")
+        await callback.message.edit_text("✅ Запись успешно отменена.")
+
+        # Сразу запрашиваем обновленный список записей
+        user_id = callback.from_user.id
+        events = await bot_logic.get_user_bookings(user_id)
+        if events:
+            # Если записи еще есть, показываем их
+            await callback.message.edit_text(
+                "✅ Запись успешно отменена. Вот ваши оставшиеся записи:",
+                reply_markup=BotKeyboards.build_bookings_keyboard(events)
+            )
+        else:
+            # Если это была последняя запись
+            await callback.message.edit_text("✅ Запись успешно отменена. У вас больше нет активных записей.")
+
     else:
         await callback.message.edit_text("❌ Не удалось отменить запись. Попробуйте позже.")
 
@@ -63,8 +81,8 @@ async def confirm_cancel(callback: CallbackQuery, bot_logic, bot):
 @router.callback_query(F.data == "cancel_back")
 async def cancel_back(callback: CallbackQuery, bot_logic):
     """Возврат к списку записей без отмены."""
-    user_email = callback.from_user.username or str(callback.from_user.id)
-    events = await bot_logic.get_user_bookings(user_email)
+    user_id = callback.from_user.id
+    events = await bot_logic.get_user_bookings(user_id)
 
     if not events:
         await callback.message.edit_text("У вас пока нет активных записей 😊")

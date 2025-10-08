@@ -2,6 +2,9 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeybo
 from config import Config
 from datetime import datetime
 import re
+import pytz
+
+tz = pytz.timezone(Config.TIMEZONE)
 
 class BotKeyboards:
     @staticmethod
@@ -222,12 +225,19 @@ class BotKeyboards:
         """Создаёт клавиатуру с записями пользователя."""
         buttons = []
         for e in events:
-            start = e["start"].get("dateTime", e["start"].get("date"))
+            start_str = e["start"].get("dateTime", e["start"].get("date"))
             # Используем fromisoformat и указываем часовой пояс UTC
-            dt = datetime.fromisoformat(start).astimezone().strftime("%d.%m %H:%M")
+            # Преобразуем строку из UTC в объект datetime
+            utc_dt = datetime.fromisoformat(start_str.replace("Z", "+00:00"))
+             # Конвертируем в локальный часовой пояс
+            local_dt = utc_dt.astimezone(tz)
+
+            # Форматируем уже локальное время
+            dt_str = local_dt.strftime("%d.%m %H:%M")
+
             title = e.get("summary", "Без названия")
             buttons.append(
-                [InlineKeyboardButton(text=f"{dt} — {title}", callback_data=f"choose_cancel:{e['id']}")]
+                [InlineKeyboardButton(text=f"{dt_str} — {title}", callback_data=f"choose_cancel:{e['id']}")]
             )
         if not buttons:
             buttons = [[InlineKeyboardButton(text="Нет записей", callback_data="noop")]]
