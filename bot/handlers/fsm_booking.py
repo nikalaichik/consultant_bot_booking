@@ -397,21 +397,11 @@ async def final_booking_confirmation_handler(callback: types.CallbackQuery, stat
 
     try:
         user_data = await state.get_data()
-        # Безопасно получаем данные для отображения в случае ошибки
-
-        #selected_slot_data = user_data.get("selected_slot")
-        #if selected_slot_data:
-        #    selected_slot_display = selected_slot_data.get('display', 'не определено')
-        #procedure_name_display = user_data.get("procedure_name", "не определена")
-
         selected_slot = Slot.deserialize(user_data["selected_slot"])
-        #selected_slot_data = user_data.get("selected_slot")
-        procedure_name = user_data["procedure_name"]
-        #procedure = user_data.get("procedure")
-        contact_info = user_data["contact_info"]
 
-        # Восстанавливаем Slot
-        #selected_slot = Slot.deserialize(selected_slot_data)
+        procedure_name = user_data["procedure_name"]
+
+        contact_info = user_data["contact_info"]
 
         # Парсим контактные данные
         client_name = contact_info.strip().split('\n')[0] if contact_info else "Клиент"
@@ -463,18 +453,6 @@ async def final_booking_confirmation_handler(callback: types.CallbackQuery, stat
             }
         )
         logger.info(f"Создана локальная запись в БД с ID: {booking_id}")
-        # Создаем запись в базе данных
-        if booking_status == "confirmed" and hasattr(bot_logic, 'reminder_service'):
-            try:
-                # Передаем booking_id, который мы ТОЛЬКО ЧТО получили из нашей БД
-                await bot_logic.reminder_service.create_booking_reminders(
-                    user_id=callback.from_user.id,
-                    booking_id=booking_id,
-                    appointment_time=selected_slot.start,
-                    procedure_name=procedure_name
-                    )
-            except Exception as e:
-                logger.error(f"Ошибка создания напоминаний: {e}", exc_info=True)
 
         # Формируем сообщение для пользователя и администратора
         if booking_status == "confirmed":
