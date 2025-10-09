@@ -175,7 +175,7 @@ async def main():
     dp.update.middleware(RateLimiterMiddleware())
 
     # --- Start cleanup task ---
-    session_manager.start_cleanup_task()
+    await session_manager.start_cleanup_task()
 
     # Запуск бота
     logger.info("🚀 Запуск бота...")

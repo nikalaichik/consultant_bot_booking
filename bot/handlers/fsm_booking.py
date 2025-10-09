@@ -394,9 +394,7 @@ async def final_booking_confirmation_handler(callback: types.CallbackQuery, stat
     """Финальное подтверждение записи - создание записи в календаре и БД"""
     await callback.answer()
     await callback.message.edit_text("⏳ Создаем запись в календаре... Пожалуйста, подождите.")
-    #user_data = {}
-    #selected_slot_display = "не определено"
-    #procedure_name_display = "не определена"
+
     try:
         user_data = await state.get_data()
         # Безопасно получаем данные для отображения в случае ошибки
@@ -421,7 +419,7 @@ async def final_booking_confirmation_handler(callback: types.CallbackQuery, stat
 
         calendar_event_id = None
         booking_status = "pending" # По умолчанию, требует ручного подтверждения
-
+        event_data = None
         # 1. СНАЧАЛА пытаемся создать событие в Google Calendar
         if hasattr(bot_logic.config, 'GOOGLE_CREDENTIALS_PATH'):
             try:
@@ -464,18 +462,19 @@ async def final_booking_confirmation_handler(callback: types.CallbackQuery, stat
                 "calendar_slot": selected_slot.start.isoformat() # <--- Сохраняем точное время
             }
         )
-
+        logger.info(f"Создана локальная запись в БД с ID: {booking_id}")
         # Создаем запись в базе данных
-        booking_id = await database.create_booking(
-            user_id=callback.from_user.id,
-            booking_data={
-                "procedure": procedure_name,
-                "contact_info": contact_info,
-                "preferred_time": selected_slot.display,
-                "notes": f"Запись через бота. Telegram: @{callback.from_user.username}",
-                "calendar_slot": selected_slot.start.isoformat()
-            }
-        )
+        if booking_status == "confirmed" and hasattr(bot_logic, 'reminder_service'):
+            try:
+                # Передаем booking_id, который мы ТОЛЬКО ЧТО получили из нашей БД
+                await bot_logic.reminder_service.create_booking_reminders(
+                    user_id=callback.from_user.id,
+                    booking_id=booking_id,
+                    appointment_time=selected_slot.start,
+                    procedure_name=procedure_name
+                    )
+            except Exception as e:
+                logger.error(f"Ошибка создания напоминаний: {e}", exc_info=True)
 
         # Формируем сообщение для пользователя и администратора
         if booking_status == "confirmed":
