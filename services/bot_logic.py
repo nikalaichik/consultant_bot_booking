@@ -392,8 +392,16 @@ class SimpleBotLogic:
         if self.reminder_service:
             await self.reminder_service.stop()
 
-    async def get_user_bookings(self, user_id: str):
+    async def get_user_bookings(self, user_id: int):
         return await self.calendar_service.get_user_bookings(user_id)
 
     async def cancel_booking(self, event_id: str):
-        return await self.calendar_service.cancel_booking(event_id)
+        # Отменяем в Google Calendar
+        success = await self.calendar_service.cancel_booking(event_id)
+
+        if success:
+            # Если в календаре отменили, удаляем локальные напоминания
+            logger.info(f"Событие {event_id} отменено в календаре, удаляем связанные напоминания.")
+            await self.database.delete_reminders_by_event_id(event_id)
+
+        return success

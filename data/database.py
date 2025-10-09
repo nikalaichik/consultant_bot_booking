@@ -406,6 +406,28 @@ class Database:
             rows = await cursor.fetchall()
             return [dict(row) for row in rows]
 
+    async def delete_reminders_by_event_id(self, calendar_event_id: str):
+        """Удаляет все напоминания, связанные с ID события в Google Calendar."""
+        async with self.get_connection() as conn:
+            # Находим локальный ID записи по ID из календаря
+            cursor = await conn.execute(
+                "SELECT id FROM bookings WHERE calendar_event_id = ?",
+                (calendar_event_id,)
+            )
+            booking_row = await cursor.fetchone()
+
+            if booking_row:
+                local_booking_id = booking_row['id']
+                # Удаляем все напоминания, связанные с этим локальным ID
+                await conn.execute(
+                    "DELETE FROM reminders WHERE booking_id = ?",
+                    (local_booking_id,)
+                )
+                await conn.commit()
+                logger.info(f"Удалены напоминания для локальной записи #{local_booking_id} (event: {calendar_event_id})")
+            else:
+                logger.warning(f"Не найдена локальная запись для отмены напоминаний по event_id: {calendar_event_id}")
+
 async def init_database(db_path: str):
     """Инициализирует базу данных"""
     db = Database(db_path)

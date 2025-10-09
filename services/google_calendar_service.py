@@ -384,15 +384,10 @@ class GoogleCalendarService:
                 self.service.events().delete(
                     calendarId=self.calendar_id,
                     eventId=event_id
-                ).execute() #
+                ).execute()
 
             # Запускаем эту функцию в потоке
             await asyncio.to_thread(delete_event_sync)
-
-            # отменяем локальные напоминания, если они есть
-            if hasattr(self, "reminder_service"):
-                # Запускаем в фоне, чтобы не задерживать ответ пользователю
-                asyncio.create_task(self.reminder_service.cancel_booking_reminders(event_id))
 
             logger.info(f"Успешно выполнен запрос на отмену записи в календаре: {event_id}")
             return True
