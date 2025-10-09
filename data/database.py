@@ -410,6 +410,7 @@ class Database:
         """Удаляет все напоминания, связанные с ID события в Google Calendar."""
         async with self.get_connection() as conn:
             # Находим локальный ID записи по ID из календаря
+            logger.info(f"--- НАЧАЛО УДАЛЕНИЯ НАПОМИНАНИЙ для event_id: {calendar_event_id} ---")
             cursor = await conn.execute(
                 "SELECT id FROM bookings WHERE calendar_event_id = ?",
                 (calendar_event_id,)
@@ -418,12 +419,22 @@ class Database:
 
             if booking_row:
                 local_booking_id = booking_row['id']
+                logger.info(f"Найден локальный booking_id: {local_booking_id}. Выполняю DELETE...")
+                # Сначала посмотрим, сколько строк будет затронуто
+                select_cursor = await conn.execute(
+                "SELECT COUNT(*) FROM reminders WHERE booking_id = ?", (local_booking_id,)
+            )
+                count_to_delete = await select_cursor.fetchone()
+                logger.info(f"Найдено {count_to_delete[0] if count_to_delete else 0} напоминаний для удаления с booking_id = {local_booking_id}.")
+
                 # Удаляем все напоминания, связанные с этим локальным ID
-                await conn.execute(
+                delete_cursor = await conn.execute(
                     "DELETE FROM reminders WHERE booking_id = ?",
                     (local_booking_id,)
                 )
                 await conn.commit()
+                # Проверяем, сколько строк было реально удалено
+                logger.info(f"ЗАПРОС DELETE ВЫПОЛНЕН. Затронуто строк: {delete_cursor.rowcount}")
                 logger.info(f"Удалены напоминания для локальной записи #{local_booking_id} (event: {calendar_event_id})")
             else:
                 logger.warning(f"Не найдена локальная запись для отмены напоминаний по event_id: {calendar_event_id}")
