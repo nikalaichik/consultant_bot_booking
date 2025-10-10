@@ -37,7 +37,7 @@ async def general_message_handler(message: types.Message, bot_logic: SimpleBotLo
 
 👤 Пользователь: {message.from_user.full_name}
 📱 @{message.from_user.username or 'не указан'}
-💬 Сообщение: {message}
+💬 Сообщение: {message.text}
 ⏰ {datetime.now().strftime('%H:%M %d.%m.%Y')}
 
 Клиент обратился за экстренной помощью!"""
@@ -49,8 +49,6 @@ async def general_message_handler(message: types.Message, bot_logic: SimpleBotLo
 
             # Клавиатура не прикрепляется — keyboard остаётся None
             keyboard = None
-
-        await message.answer(response, reply_markup=keyboard)
 
         await message.answer(response, reply_markup=keyboard)
 

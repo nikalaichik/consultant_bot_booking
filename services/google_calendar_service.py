@@ -187,7 +187,7 @@ class GoogleCalendarService:
             current_date += timedelta(days=1)
 
         # Ограничиваем количество слотов
-        return available_slots[:50]
+        return available_slots[:150]
 
     def _generate_day_slots(self, date, busy_slots, slot_duration, work_start, work_end, interval):
         """Генерирует слоты для конкретного дня"""
