@@ -7,7 +7,7 @@ from services.bot_logic import SimpleBotLogic
 from bot.keyboards import BotKeyboards
 from data.database import Database
 from dataclasses import dataclass
-from services.google_calendar_service import GoogleCalendarService
+
 from datetime import datetime
 import logging
 import pytz
@@ -239,9 +239,17 @@ def create_time_slots_keyboard(available_slots: list[Slot], page: int = 0) -> ty
     """Создает клавиатуру с временными слотами"""
     from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-    # Группируем по датам
-    grouped_slots = group_slots_by_date(available_slots)
-    dates = list(grouped_slots.keys())
+    # Группируем слоты по датам для отображения
+    grouped_by_date = {}
+    # создаем словарь для быстрого поиска глобального индекса слота
+    slot_to_global_index = {slot.start.isoformat(): i for i, slot in enumerate(available_slots)}
+
+    for slot in available_slots:
+        if slot.date_str not in grouped_by_date:
+            grouped_by_date[slot.date_str] = []
+        grouped_by_date[slot.date_str].append(slot)
+
+    dates = list(grouped_by_date.keys())
 
     # Пагинация по датам
     dates_per_page = 3
@@ -250,22 +258,25 @@ def create_time_slots_keyboard(available_slots: list[Slot], page: int = 0) -> ty
     page_dates = dates[start_date_idx:end_date_idx]
 
     buttons = []
-    # Находим глобальный индекс первого слота на текущей странице
-    global_slot_idx_offset = sum(len(grouped_slots[date]) for date in dates[:start_date_idx])
 
-    current_global_idx = global_slot_idx_offset
     # Заголовок дня
     for date in page_dates:
-        day_slots = grouped_slots[date]
+        day_slots = grouped_by_date[date]
         buttons.append([types.InlineKeyboardButton(text=f"📅 {date} ({day_slots[0].weekday})", callback_data="date_header")])
 
         #Слоты времени для этого дня (группами по 3)
         for i in range(0, len(day_slots), 3):
-            row_buttons = [types.InlineKeyboardButton(text=f"⏰ {slot.time_str}", callback_data=f"time_{current_global_idx + j}")
-                for j, slot in enumerate(day_slots[i:i+3])]
-
+            row_buttons = []
+            for slot in day_slots[i:i+3]:
+                # Находим глобальный индекс этого слота
+                global_index = slot_to_global_index[slot.start.isoformat()]
+                row_buttons.append(
+                    types.InlineKeyboardButton(
+                        text=f"⏰ {slot.time_str}",
+                        callback_data=f"time_{global_index}"
+                    )
+                )
             buttons.append(row_buttons)
-        current_global_idx += len(day_slots)
 
         # Разделитель между датами
         if date != page_dates[-1]:
@@ -328,7 +339,7 @@ async def time_slot_selected_handler(callback: types.CallbackQuery, state: FSMCo
         <b>Пример:</b>
         Анна Петрова
         +375 29 345-67-89
-        Предпочитаю утром, есть аллергия на йод"""
+        Есть аллергия на йод"""
 
         await callback.message.edit_text(contact_text)
         await state.set_state(UserStates.booking_contact_info)
@@ -347,7 +358,7 @@ async def date_header_handler(callback: types.CallbackQuery):
 
 @router.message(StateFilter(UserStates.booking_contact_info))
 async def contact_info_handler(message: types.Message, state: FSMContext):
-    """Обработка нажатия на заголовок даты (ничего не делаем)"""
+    """Обработка контактной информации"""
     user_data = await state.get_data()
     selected_slot_data = user_data.get("selected_slot")
     procedure_name = user_data.get("procedure_name")
@@ -472,7 +483,7 @@ async def final_booking_confirmation_handler(callback: types.CallbackQuery, stat
 
     ⏰ <b>ЧТО ДАЛЬШЕ:</b>
     1. Мы пришлем напоминание за день до процедуры.
-    2. Если нужно изменить или отменить запись - свяжитесь с нами.
+    2. Отменить запись можно в меню Мои записи.
 
     📞 <b>КОНТАКТЫ:</b>
     {bot_logic.config.CLINIC_PHONE}

@@ -4,6 +4,7 @@ from bot.keyboards import BotKeyboards
 from utils.security import sanitize_for_model
 from utils.rate_limiter import rate_limit
 import logging
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -27,10 +28,29 @@ async def general_message_handler(message: types.Message, bot_logic: SimpleBotLo
 
         if intent == "booking":
             keyboard = BotKeyboards.procedures_menu()
-        elif intent == "emergency":
-            keyboard = BotKeyboards.emergency_menu()
         elif intent == "consultation":
             keyboard = BotKeyboards.booking_menu()
+        elif intent == "emergency":
+            # Не показываем клавиатуру, а уведомляем администратора
+            if bot_logic.config.ADMIN_USER_ID:
+                admin_alert = f"""🚨 ЭКСТРЕННАЯ СИТУАЦИЯ
+
+👤 Пользователь: {message.from_user.full_name}
+📱 @{message.from_user.username or 'не указан'}
+💬 Сообщение: {message}
+⏰ {datetime.now().strftime('%H:%M %d.%m.%Y')}
+
+Клиент обратился за экстренной помощью!"""
+
+                try:
+                    await message.bot.send_message(bot_logic.config.ADMIN_USER_ID, admin_alert)
+                except Exception as e:
+                    logger.error(f"Не удалось уведомить администратора об экстренной ситуации: {e}")
+
+            # Клавиатура не прикрепляется — keyboard остаётся None
+            keyboard = None
+
+        await message.answer(response, reply_markup=keyboard)
 
         await message.answer(response, reply_markup=keyboard)
 

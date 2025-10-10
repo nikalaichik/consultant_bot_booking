@@ -54,7 +54,7 @@ class BotKeyboards:
             [InlineKeyboardButton(text="💬 Консультация", callback_data="proc_consultation")]
         ])
 
-    @staticmethod
+    #@staticmethod
     def consultation_next_steps() -> InlineKeyboardMarkup:
         """Следующие шаги после консультации"""
         return InlineKeyboardMarkup(inline_keyboard=[
@@ -71,15 +71,15 @@ class BotKeyboards:
             [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_procedures")]
         ])
 
-    @staticmethod
-    def emergency_menu() -> InlineKeyboardMarkup:
+    #@staticmethod
+    '''def emergency_menu() -> InlineKeyboardMarkup:
         """Меню экстренных ситуаций"""
         return InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🔥 Воспаление", callback_data="emergency_inflammation")],
             [InlineKeyboardButton(text="😰 Аллергия", callback_data="emergency_allergy")],
             [InlineKeyboardButton(text="😨 Боль", callback_data="emergency_pain")],
             [InlineKeyboardButton(text="📞 Связаться с врачом", callback_data="emergency_doctor")]
-        ])
+        ])'''
 
     @staticmethod
     def contact_menu() -> InlineKeyboardMarkup:
@@ -167,7 +167,7 @@ class BotKeyboards:
 
         # Всегда добавляем кнопку для общей консультации
         buttons.append([InlineKeyboardButton(text="📅 Записаться на консультацию", callback_data="book_consultation")])
-
+        buttons.append([InlineKeyboardButton(text="💰 Узнать цены", callback_data="get_prices")])
         if not buttons:
             # Если вдруг ничего не нашли, возвращаем стандартное меню
             return BotKeyboards.consultation_next_steps()
@@ -212,13 +212,13 @@ class BotKeyboards:
             ]
         ])
 
-    @staticmethod
-    def reminders_menu() -> InlineKeyboardMarkup:
+    #@staticmethod
+    '''def reminders_menu() -> InlineKeyboardMarkup:
         """Меню управления напоминаниями"""
         return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📋 Мои напоминания", callback_data="my_reminders")],
         [InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_main")]
-    ])
+    ])'''
 
     @staticmethod
     def build_bookings_keyboard(events: list) -> InlineKeyboardMarkup:

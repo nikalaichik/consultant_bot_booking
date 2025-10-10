@@ -52,8 +52,7 @@ async def problem_description_handler(message: types.Message, state: FSMContext,
     """Шаг 3: Пользователь прислал описание проблемы. Финал сценария."""
     user_data = await state.get_data()
 
-    # Обновляем профиль в сессии и базе данных (как в вашем коде)
-    # Обновляем профиль в базе данных
+    # Обновляем профиль в сессии и базе данных
     profile_data = {
         "skin_type": user_data.get("skin_type"),
         "age_group": user_data.get("age_group")

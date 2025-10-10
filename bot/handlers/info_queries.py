@@ -63,7 +63,7 @@ async def emergency_handler(callback: types.CallbackQuery, bot_logic: SimpleBotL
     emergency_contacts = f"""
 
 📞 ЭКСТРЕННЫЕ КОНТАКТЫ:
-Клиника: {bot_logic.config.CLINIC_PHONE}
+Косметолог: {bot_logic.config.CLINIC_PHONE}
 Скорая помощь: 103
 WhatsApp: {bot_logic.config.CLINIC_PHONE}"""
 
