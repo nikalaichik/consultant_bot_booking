@@ -103,7 +103,7 @@ class BotKeyboards:
         buttons = [
             [InlineKeyboardButton(text="📋 Все заявки", callback_data="admin_all_bookings")] if show_all_bookings else [],
             [InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")],
-            [InlineKeyboardButton(text="📢 Рассылка", callback_data="admin_broadcast")],
+            [InlineKeyboardButton(text="📢 Сделать рассылку", callback_data="start_broadcast")],
             [InlineKeyboardButton(text="🔄 Перезагрузить БЗ", callback_data="admin_reload_kb")]
         ]
         # убираем пустые
@@ -127,8 +127,9 @@ class BotKeyboards:
             [InlineKeyboardButton(text="🧼 Чистка лица", callback_data="price_cleaning")],
             [InlineKeyboardButton(text="💨 Карбокситерапия", callback_data="price_carboxy")],
             [InlineKeyboardButton(text="🎯 Микронидлинг", callback_data="price_microneedling")],
-            [InlineKeyboardButton(text="🔄 Мезопилинг", callback_data="price_mesopeel")],
+            [InlineKeyboardButton(text="🔄 Мезопилинг", callback_data="price_peeling")],
             [InlineKeyboardButton(text="👐 Массажи", callback_data="price_massage")],
+            [InlineKeyboardButton(text="💬 Консультация", callback_data="price_consultation")],
             [InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_main")]
         ])
 

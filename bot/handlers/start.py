@@ -8,6 +8,8 @@ from config import Config
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 import logging
+from aiogram.types import FSInputFile
+from pathlib import Path
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -23,11 +25,10 @@ async def start_handler(message: types.Message, state: FSMContext, database: Dat
     await database.get_or_create_user(message.from_user.id, user_data)
     welcome_text = """👋 Добро пожаловать в косметологическую клинику E-clinic!
 
-Я - ваш AI-ассистент. Помогу с:
+Я - ваш ассистент косметолога. Помогу с:
 💬 Консультациями по процедурам
 📅 Записью на прием
 💰 Информацией о ценах
-🆘 Экстренными вопросами
 
 Просто напишите ваш вопрос или выберите в меню 👇"""
     await message.answer(welcome_text, reply_markup=BotKeyboards.main_menu())
@@ -70,7 +71,67 @@ async def show_prices_menu_callback(callback: types.CallbackQuery):
 # Обработка выбора категории в меню цен
 @router.callback_query(F.data.startswith("price_"))
 async def show_category_prices(callback: types.CallbackQuery):
-    prices = {
+    """Отправляет картинку с прайсом для выбранной категории."""
+
+    # Определяем путь к папке с изображениями
+    # Path.cwd() получает текущую рабочую директорию проекта
+    images_path = Path.cwd() / "assets" / "images" / "prices"
+
+    # Словарь, который сопоставляет callback_data с названием файла и заголовком
+    prices_map = {
+        "price_cleaning": {
+            "caption": "🧼 <b>Цены на чистку лица:</b>",
+            "photo_path": images_path / "cleaning.png"
+        },
+        "price_carboxy": {
+            "caption": "💨 <b>Цены на карбокситерапию:</b>",
+            "photo_path": images_path / "carboxy.png"
+        },
+        "price_microneedling": {
+            "caption": "🎯 <b>Цены на микронидлинг:</b>",
+            "photo_path": images_path / "microneedling.png"
+        },
+        "price_peeling": {
+            "caption": "🔄 <b>Цены на пилинг:</b>",
+            "photo_path": images_path / "peeling.png"
+        },
+        "price_massage": {
+            "caption": "👐 <b>Цены на массажи лица:</b>",
+            "photo_path": images_path / "massage.png"
+        },
+        "price_consultation": {
+            "caption": "👐 <b>Цены на консультацию:</b>",
+            "photo_path": images_path / "consultation.png"
+        },
+    }
+
+    # Получаем данные для выбранной категории
+    price_info = prices_map.get(callback.data)
+    logger.info(price_info)
+
+    await callback.answer() # Сразу отвечаем на колбэк, чтобы убрать часики
+
+    if price_info and price_info["photo_path"].is_file():
+        # Если информация найдена и файл с картинкой существует
+        photo = FSInputFile(price_info["photo_path"])
+
+        # Удаляем старое текстовое сообщение
+        #await callback.message.delete()
+
+        # Отправляем новое сообщение с фото
+        await callback.message.answer_photo(
+            photo=photo,
+            caption=price_info["caption"],
+            reply_markup=BotKeyboards.prices_menu() # Показываем то же меню для выбора другой категории
+        )
+    else:
+        # Если картинка не найдена, отправляем текстовое сообщение об ошибке
+        await callback.message.answer(
+            "😔 К сожалению, прайс для этой категории сейчас недоступен. Попробуйте позже.",
+            reply_markup=BotKeyboards.prices_menu()
+        )
+
+    '''prices = {
         "price_cleaning": (
             "🧼 Чистка лица:\n"
             "• Ультразвуковая — 4000–6000 ₽\n"
@@ -78,12 +139,12 @@ async def show_category_prices(callback: types.CallbackQuery):
         ),
         "price_carboxy": (
             "💨 Карбокситерапия:\n"
-            "• 1 процедура — 3000–5000 ₽\n"
+            "• 1 процедура — 60 BYN\n"
             "• Курс (6–10 процедур)"
         ),
         "price_microneedling": (
             "🎯 Микронидлинг:\n"
-            "• Одна процедура — 5000–9000 ₽"
+            "• Одна процедура — 145 BYN"
         ),
         "price_mesopeel": (
             "🔄 Мезопилинг:\n"
@@ -102,7 +163,7 @@ async def show_category_prices(callback: types.CallbackQuery):
         text=answer,
         reply_markup=BotKeyboards.prices_menu()
     )
-    await callback.answer()
+    await callback.answer()'''
 
 @router.callback_query(F.data == "back_to_main")
 async def back_to_main(callback: types.CallbackQuery):

@@ -503,7 +503,7 @@ async def final_booking_confirmation_handler(callback: types.CallbackQuery, stat
 {admin_calendar_info}"""
             await callback.bot.send_message(bot_logic.config.ADMIN_USER_ID, admin_text)
 
-        # Создаем напоминания ТОЛЬКО для подтвержденных записей
+        # Создаем напоминания ТОЛЬКО  для подтвержденных записей
         if booking_status == "confirmed" and hasattr(bot_logic, 'reminder_service'):
             try:
                 await bot_logic.reminder_service.create_booking_reminders(

@@ -267,6 +267,13 @@ class Database:
             columns = [description[0] for description in cursor.description]
             return [dict(zip(columns, row)) for row in rows]
 
+    async def get_all_users(self) -> List[int]:
+        """Возвращает список ID всех пользователей для рассылки."""
+        async with self.get_connection() as conn:
+            cursor = await conn.execute("SELECT telegram_id FROM users")
+            rows = await cursor.fetchall()
+            return [row['telegram_id'] for row in rows]
+
     # ОБРАТНАЯ СВЯЗЬ
     async def save_feedback(self, user_id: int, conversation_id: int, rating: int, comment: Optional[str] = None):
         """Сохраняет обратную связь от пользователя."""
@@ -438,6 +445,13 @@ class Database:
                 logger.info(f"Удалены напоминания для локальной записи #{local_booking_id} (event: {calendar_event_id})")
             else:
                 logger.warning(f"Не найдена локальная запись для отмены напоминаний по event_id: {calendar_event_id}")
+
+    async def get_all_users(self) -> List[int]:
+        """Возвращает список ID всех пользователей для рассылки."""
+        async with self.get_connection() as conn:
+            cursor = await conn.execute("SELECT telegram_id FROM users")
+            rows = await cursor.fetchall()
+            return [row['telegram_id'] for row in rows]
 
 async def init_database(db_path: str):
     """Инициализирует базу данных"""
