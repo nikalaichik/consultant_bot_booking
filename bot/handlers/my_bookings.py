@@ -88,4 +88,4 @@ async def cancel_back(callback: CallbackQuery, bot_logic):
         await callback.message.edit_text("У вас пока нет активных записей 😊")
         return
 
-    await callback.message.edit_text("Ваши предстоящие записи:", reply_markup=BotKeyboards.build_bookings_keyboard(events))
+    await callback.message.edit_text("Ваши предстоящие записи: \n При необхоимости вы можете отменить запись, нажав на кнопку с информацией о записи.", reply_markup=BotKeyboards.build_bookings_keyboard(events))

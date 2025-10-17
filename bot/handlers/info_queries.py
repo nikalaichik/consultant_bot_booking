@@ -18,7 +18,7 @@ async def procedure_info_handler(callback: types.CallbackQuery, bot_logic: Simpl
         "carboxy": "карбокситерапия стоимость эффекты показания курс",
         "microneedling": "микронидлинг dermapen цена курс противопоказания",
         "massage": "массаж лица виды стоимость эффекты",
-        "mesopeel": "мезопилинг стоимость показания курс"
+        "peeling": "пилинг стоимость показания курс"
     }
 
     query = procedure_queries.get(procedure, f"процедура {procedure}")

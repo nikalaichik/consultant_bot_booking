@@ -10,6 +10,8 @@ from data.database import Database
 from config import Config
 from services.bot_logic import SimpleBotLogic
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
 
@@ -180,3 +182,69 @@ async def broadcast_sender(bot: Bot, users: list[int], data: dict, admin_id: int
         f"✅ Успешно отправлено: {success_count}\n"
         f"❌ Не удалось отправить: {fail_count}"
     )
+
+@router.callback_query(F.data == "admin_reminders")
+async def admin_show_reminders(callback: types.CallbackQuery, database: Database, bot_logic: SimpleBotLogic):
+    """Показывает администратору все предстоящие и недавние напоминания."""
+    if callback.from_user.id != bot_logic.config.ADMIN_USER_ID:
+        await callback.answer("❌ Доступ запрещен", show_alert=True)
+        return
+
+    await callback.message.edit_text("🔄 Загружаю список напоминаний...")
+
+    reminders = await database.get_all_reminders_for_admin()
+
+    if not reminders:
+        await callback.message.edit_text("🔔 Актуальных напоминаний нет.", reply_markup=BotKeyboards.admin_menu())
+        return
+
+    local_tz = ZoneInfo(bot_logic.config.TIMEZONE)
+
+    # Разделяем напоминания на предстоящие и прошедшие
+    upcoming_reminders = []
+    past_reminders = []
+
+    status_emoji = {
+        'pending': '⏳',
+        'sent': '✅',
+        'failed': '❌',
+        'cancelled': '🚫'
+    }
+
+    for r in reminders:
+        # Парсим время и приводим к локальной таймзоне
+        try:
+            scheduled_time = datetime.fromisoformat(r['scheduled_time']).replace(tzinfo=datetime.utc.timezone).astimezone(local_tz)
+            time_str = scheduled_time.strftime('%d.%m %H:%M')
+        except (TypeError, ValueError):
+            time_str = "некорректная дата"
+
+        username = f"@{r['username']}" if r['username'] else f"ID: {r['user_id']}"
+
+        line = (
+            f"{status_emoji.get(r['status'], '❓')} {time_str} - "
+            f"<b>{r.get('procedure', 'Процедура')}</b> для {username}"
+        )
+
+        if r['status'] == 'pending':
+            upcoming_reminders.append(line)
+        else:
+            past_reminders.append(line)
+
+    # Формируем итоговый текст
+    text = ""
+    if upcoming_reminders:
+        text += "<b>⏳ ПРЕДСТОЯЩИЕ НАПОМИНАНИЯ:</b>\n"
+        text += "\n".join(upcoming_reminders)
+        text += "\n\n"
+
+    if past_reminders:
+        text += "<b>📋 ИСТОРИЯ ЗА НЕДЕЛЮ (отправленные/ошибки):</b>\n"
+        text += "\n".join(past_reminders)
+
+    # Убедимся, что сообщение не превышает лимиты Telegram
+    if len(text) > 4096:
+        text = text[:4090] + "\n(...)"
+
+    await callback.message.edit_text(text, reply_markup=BotKeyboards.admin_menu())
+    await callback.answer()

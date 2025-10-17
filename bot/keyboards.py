@@ -15,7 +15,7 @@ class BotKeyboards:
                 [KeyboardButton(text="💬 Консультация"), KeyboardButton(text="📅 Записаться")],
                 [KeyboardButton(text="💰 Цены"), KeyboardButton(text="🏥 О клинике")],
                 [KeyboardButton(text="📞 Контакты"), KeyboardButton(text="❓ Помощь")],
-                [KeyboardButton(text="🔔 Мои напоминания"), KeyboardButton(text="Мои записи")]
+                [KeyboardButton(text="Мои записи")]
 
             ],
             resize_keyboard=True
@@ -50,7 +50,7 @@ class BotKeyboards:
             [InlineKeyboardButton(text="💨 Карбокситерапия", callback_data="proc_carboxy")],
             [InlineKeyboardButton(text="🎯 Микронидлинг", callback_data="proc_microneedling")],
             [InlineKeyboardButton(text="👐 Массажи", callback_data="proc_massage")],
-            [InlineKeyboardButton(text="🔄 Мезопилинг", callback_data="proc_mesopeel")],
+            [InlineKeyboardButton(text="🔄 Пилинг", callback_data="proc_peeling")],
             [InlineKeyboardButton(text="💬 Консультация", callback_data="proc_consultation")]
         ])
 
@@ -73,7 +73,7 @@ class BotKeyboards:
 
     #@staticmethod
     '''def emergency_menu() -> InlineKeyboardMarkup:
-        """Меню экстренных ситуаций"""
+        #"""Меню экстренных ситуаций"""
         return InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🔥 Воспаление", callback_data="emergency_inflammation")],
             [InlineKeyboardButton(text="😰 Аллергия", callback_data="emergency_allergy")],
@@ -104,6 +104,7 @@ class BotKeyboards:
             [InlineKeyboardButton(text="📋 Все заявки", callback_data="admin_all_bookings")] if show_all_bookings else [],
             [InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")],
             [InlineKeyboardButton(text="📢 Сделать рассылку", callback_data="start_broadcast")],
+            [InlineKeyboardButton(text="🔔 Напоминания клиентов", callback_data="admin_reminders")],
             [InlineKeyboardButton(text="🔄 Перезагрузить БЗ", callback_data="admin_reload_kb")]
         ]
         # убираем пустые
@@ -127,7 +128,7 @@ class BotKeyboards:
             [InlineKeyboardButton(text="🧼 Чистка лица", callback_data="price_cleaning")],
             [InlineKeyboardButton(text="💨 Карбокситерапия", callback_data="price_carboxy")],
             [InlineKeyboardButton(text="🎯 Микронидлинг", callback_data="price_microneedling")],
-            [InlineKeyboardButton(text="🔄 Мезопилинг", callback_data="price_peeling")],
+            [InlineKeyboardButton(text="🔄 Пилинг", callback_data="price_peeling")],
             [InlineKeyboardButton(text="👐 Массажи", callback_data="price_massage")],
             [InlineKeyboardButton(text="💬 Консультация", callback_data="price_consultation")],
             [InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_main")]
@@ -148,7 +149,7 @@ class BotKeyboards:
             "карбокситерапия": "book_carboxy",
             "микронидлинг": "book_microneedling",
             "массаж": "book_massage",
-            "мезопилинг": "book_mesopeel"
+            "пилинг": "book_peeling"
         }
 
         # Ищем упоминания процедур в тексте
@@ -161,7 +162,7 @@ class BotKeyboards:
                     "book_carboxy": "💨 Карбокситерапия",
                     "book_microneedling": "🎯 Микронидлинг",
                     "book_massage": "👐 Массаж",
-                    "book_mesopeel": "🔄 Мезопилинг"
+                    "book_peeling": "🔄 Пилинг",
                 }.get(callback_data, "Процедура")
 
                 buttons.append([InlineKeyboardButton(text=f"Записаться на {procedure_name}", callback_data=callback_data)])
@@ -183,7 +184,7 @@ class BotKeyboards:
             [InlineKeyboardButton(text="💨 Карбокситерапия", callback_data="book_carboxy")],
             [InlineKeyboardButton(text="🎯 Микронидлинг", callback_data="book_microneedling")],
             [InlineKeyboardButton(text="👐 Массаж", callback_data="book_massage")],
-            [InlineKeyboardButton(text="🔄 Мезопилинг", callback_data="book_mesopeel")],
+            [InlineKeyboardButton(text="🔄 Пилинг", callback_data="book_peeling")],
             [InlineKeyboardButton(text="💬 Консультация", callback_data="book_consultation")],
         ])
 

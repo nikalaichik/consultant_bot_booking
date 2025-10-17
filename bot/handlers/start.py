@@ -5,8 +5,7 @@ from bot.keyboards import BotKeyboards
 from bot.states import UserStates
 from data.database import Database
 from config import Config
-from datetime import datetime, timezone
-from zoneinfo import ZoneInfo
+
 import logging
 from aiogram.types import FSInputFile
 from pathlib import Path
@@ -23,9 +22,9 @@ async def start_handler(message: types.Message, state: FSMContext, database: Dat
         "last_name": message.from_user.last_name
     }
     await database.get_or_create_user(message.from_user.id, user_data)
-    welcome_text = """👋 Добро пожаловать в косметологическую клинику E-clinic!
+    welcome_text = """👋 Добро пожаловать!
 
-Я - ваш ассистент косметолога. Помогу с:
+Я - ассистент косметолога. Помогу с:
 💬 Консультациями по процедурам
 📅 Записью на прием
 💰 Информацией о ценах
@@ -190,11 +189,11 @@ async def show_contacts(message: types.Message):
 Если у вас есть вопросы о процедурах или вы хотите записаться на консультацию, я буду рада помочь!""",
 reply_markup=BotKeyboards.main_menu())
 
-# Обработка кнопки "О клинике" в главном меню
-@router.message(F.text == "🏥 О клинике")
+# Обработка кнопки "Обо мне" в главном меню
+@router.message(F.text == "🏥 Обо мн е")
 async def show_about(message: types.Message):
     await message.answer(
-    "Здравствуйте! Вот информация о нашей клинике: \n\n\n Если у вас есть вопросы о процедурах или вы хотите записаться на консультацию, я буду рад помочь!",
+    "Здравствуйте! Меня зовут Елена, я косметолог с высшим медицинским образованием. \n\n\n Если у вас есть вопросы о процедурах или вы хотите записаться на консультацию, я буду рада помочь!",
 reply_markup=BotKeyboards.main_menu())
 
 # Обработка кнопки "Помощь" в главном меню
@@ -221,7 +220,7 @@ async def booking_entrypoint(message: types.Message):
         reply_markup=BotKeyboards.booking_selection_menu()
     )
 
-@router.message(F.text == "🔔 Мои напоминания")
+'''@router.message(F.text == "🔔 Мои напоминания")
 async def my_reminders_handler(message: types.Message, database: Database):
     """Обработчик кнопки 'Мои напоминания'"""
     try:
@@ -284,4 +283,4 @@ async def my_reminders_handler(message: types.Message, database: Database):
         await message.answer(
             "😔 Произошла ошибка при загрузке напоминаний.",
             reply_markup=BotKeyboards.main_menu()
-        )
+        )'''

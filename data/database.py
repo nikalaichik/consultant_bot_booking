@@ -453,6 +453,26 @@ class Database:
             rows = await cursor.fetchall()
             return [row['telegram_id'] for row in rows]
 
+    async def get_all_reminders_for_admin(self) -> List[Dict]:
+        """
+        Получает все предстоящие напоминания и те, что были отправлены
+        или провалены за последнюю неделю для админ-панели.
+        """
+        async with self.get_connection() as conn:
+            # `datetime('now', '-7 days')` выбирает данные за последнюю неделю
+            cursor = await conn.execute("""
+                SELECT r.*, u.username, u.first_name, b.procedure
+                FROM reminders r
+                JOIN users u ON r.user_id = u.telegram_id
+                LEFT JOIN bookings b ON r.booking_id = b.id
+                WHERE
+                    r.status = 'pending' OR
+                    (r.status IN ('sent', 'failed') AND r.sent_at >= datetime('now', '-7 days'))
+                ORDER BY r.scheduled_time DESC
+            """)
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+
 async def init_database(db_path: str):
     """Инициализирует базу данных"""
     db = Database(db_path)
