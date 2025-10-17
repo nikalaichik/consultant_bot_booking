@@ -13,7 +13,7 @@ class BotKeyboards:
         return ReplyKeyboardMarkup(
             keyboard=[
                 [KeyboardButton(text="💬 Консультация"), KeyboardButton(text="📅 Записаться")],
-                [KeyboardButton(text="💰 Цены"), KeyboardButton(text="🏥 О клинике")],
+                [KeyboardButton(text="💰 Цены"), KeyboardButton(text="👩‍⚕️ Обо мне")],
                 [KeyboardButton(text="📞 Контакты"), KeyboardButton(text="❓ Помощь")],
                 [KeyboardButton(text="Мои записи")]
 

@@ -10,7 +10,7 @@ from data.database import Database
 from config import Config
 from services.bot_logic import SimpleBotLogic
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from datetime import datetime
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
@@ -214,7 +214,7 @@ async def admin_show_reminders(callback: types.CallbackQuery, database: Database
     for r in reminders:
         # Парсим время и приводим к локальной таймзоне
         try:
-            scheduled_time = datetime.fromisoformat(r['scheduled_time']).replace(tzinfo=datetime.utc.timezone).astimezone(local_tz)
+            scheduled_time = datetime.fromisoformat(r['scheduled_time']).replace(tzinfo=timezone.utc).astimezone(local_tz)
             time_str = scheduled_time.strftime('%d.%m %H:%M')
         except (TypeError, ValueError):
             time_str = "некорректная дата"
