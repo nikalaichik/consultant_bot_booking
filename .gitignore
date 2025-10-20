@@ -30,5 +30,13 @@ Thumbs.db
 
 *.json
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
+
+# Папка с картинками
+/assets/
+
+# Другие файлы
+consultant_bot_booking.service
